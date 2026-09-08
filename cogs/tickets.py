@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import asyncio
 
 # ============================
 TICKET_KANAL_ID = 1534770099179884564
@@ -58,7 +59,14 @@ class CloseTicketView(discord.ui.View):
             await log_kanal.send(embed=embed)
 
         await interaction.response.send_message("Kanal 5 saniye içinde silinecek...")
-        await kanal.delete(delay=5)
+        # NOT: discord.py'de TextChannel.delete() 'delay' parametresi ALMAZ
+        # (bu parametre sadece Message.delete() için var). Eskiden kanal.delete(delay=5)
+        # çağrıldığı için arka planda TypeError fırlatıyordu ve kanal hiç silinmiyordu.
+        await asyncio.sleep(5)
+        try:
+            await kanal.delete(reason=f"Ticket kapatıldı - {interaction.user}")
+        except discord.NotFound:
+            pass
 
 
 class TicketPanelView(discord.ui.View):
