@@ -71,7 +71,15 @@ class AfterTakeView(View):
 
     @discord.ui.button(label="Desteği Bitir", style=discord.ButtonStyle.success, custom_id="support_finish")
     async def finish(self, interaction: discord.Interaction, button: Button):
-        # YARDIM ses kanalındaki herkesi at
+        # ÖNEMLİ: Discord, bir butona basıldıktan sonra 3 saniye içinde bir yanıt bekler.
+        # Eskiden burada önce ses kanalındaki herkes atılıyordu, o işlem 3 saniyeyi geçince
+        # Discord etkileşimi geçersiz sayıyordu ve send_modal() "hata" veriyordu / hiç açılmıyordu.
+        # Bu yüzden modal'ı HER ŞEYDEN ÖNCE, ilk iş olarak gönderiyoruz.
+        duration = str(datetime.now(timezone.utc) - self.start_time).split(".")[0]
+        modal = SupportModal(self.member_id, self.staff_id, duration)
+        await interaction.response.send_modal(modal)
+
+        # Modal gönderildikten SONRA diğer işlemleri yap
         yardim = interaction.guild.get_channel(YARDIM_SESI)
         if yardim and isinstance(yardim, discord.VoiceChannel):
             for m in list(yardim.members):
@@ -79,10 +87,6 @@ class AfterTakeView(View):
                     await m.move_to(None)
                 except:
                     pass
-
-        duration = str(datetime.now(timezone.utc) - self.start_time).split(".")[0]
-        modal = SupportModal(self.member_id, self.staff_id, duration)
-        await interaction.response.send_modal(modal)
 
         # Log mesajını güncelle / butonları kaldır
         try:
@@ -95,6 +99,9 @@ class AfterTakeView(View):
 
     @discord.ui.button(label="Boş", style=discord.ButtonStyle.secondary, custom_id="support_empty")
     async def empty(self, interaction: discord.Interaction, button: Button):
+        # Aynı 3 saniyelik sınır burada da geçerli — önce yanıt ver, sonra işlemleri yap.
+        await interaction.response.defer(ephemeral=True)
+
         yardim = interaction.guild.get_channel(YARDIM_SESI)
         if yardim and isinstance(yardim, discord.VoiceChannel):
             for m in list(yardim.members):
@@ -114,7 +121,7 @@ class AfterTakeView(View):
                 f"Katılımcı: {member.mention if member else self.member_id}"
             )
 
-        await interaction.response.send_message("✅ Boş olarak kapatıldı.", ephemeral=True)
+        await interaction.followup.send("✅ Boş olarak kapatıldı.", ephemeral=True)
         try:
             await interaction.message.edit(view=None)
         except:
