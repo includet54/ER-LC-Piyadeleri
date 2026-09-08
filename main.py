@@ -13,6 +13,8 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
+        # HARİKA KISIM BURASI: Bu kod, cogs klasöründeki music.py dahil tüm dosyaları otomatik bulup yükler!
+        # Yani yeni bir dosya eklediğinde buraya gelip adını yazmana gerek kalmaz.
         for filename in os.listdir("./cogs"):
             if filename.endswith(".py"):
                 try:
@@ -26,8 +28,8 @@ class MyBot(commands.Bot):
         from cogs.tickets import TicketPanelView, CloseTicketView
         from cogs.market import MarketView, TotemView
         from cogs.vs_talep import VSSetupView, VSChannelView
-        # yardim_bekleme.py kendi kalıcı görünümlerini kendi setup() fonksiyonunda
-        # zaten ekliyor, burada tekrar eklemeye gerek yok (aksi halde çift kayıt olur).
+        # (Müzik botunda bot kapanırsa ses bağlantısı kopacağı için 
+        # buraya müzik butonlarını eklememize gerek yoktur, otomatik kapanırlar.)
 
         self.add_view(KayitButonView())
         self.add_view(OnayView())
@@ -36,11 +38,11 @@ class MyBot(commands.Bot):
         self.add_view(MarketView())
         self.add_view(TotemView())
 
-        # VSChannelView artık bilgiyi kanalın topic'inden okuyor,
-        # bu yüzden argümansız (varsayılan) olarak eklenmesi yeterli ve doğru.
+        # VSChannelView artık bilgiyi kanalın topic'inden okuyor
         self.add_view(VSSetupView())
         self.add_view(VSChannelView())
 
+        # Komutları Discord'a (slash komut olarak) yollar
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
         synced = await self.tree.sync(guild=guild)
