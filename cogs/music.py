@@ -7,6 +7,7 @@ import asyncio
 # yt-dlp ayarları
 ytdl_format_options = {
     'format': 'bestaudio/best',
+    'cookiefile': 'cookies.txt',  # <-- YENİ EKLENEN SATIR BURASI
     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
     'restrictfilenames': True,
     'noplaylist': True,
