@@ -19,12 +19,27 @@ class RolSecimView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    async def toggle_roles(self, interaction: discord.Interaction, role_ids: list, label: str):
+    async def toggle_roles(self, interaction: discord.Interaction, role_ids: list, label: str, conflicts: list = None):
         guild = interaction.guild
         member = interaction.user
         
         verilenler = []
         alinanlar = []
+        
+        # Üyede vereceğimiz ana rol halihazırda var mı? (Birden fazla rol veriliyorsa ilkine bakalım)
+        ilk_rol = guild.get_role(role_ids[0])
+        has_primary = ilk_rol in member.roles if ilk_rol else False
+
+        # Eğer rolü VERECEKSEK ve bir zıtlık kuralı (conflicts) belirtilmişse:
+        if not has_primary and conflicts:
+            for c_id in conflicts:
+                c_rol = guild.get_role(c_id)
+                if c_rol and c_rol in member.roles:
+                    try:
+                        await member.remove_roles(c_rol, reason=f"{label} rolü seçildiği için zıt rol çıkarıldı")
+                        alinanlar.append(c_rol.name)
+                    except discord.Forbidden:
+                        pass
         
         for r_id in role_ids:
             rol = guild.get_role(r_id)
@@ -70,15 +85,15 @@ class RolSecimView(discord.ui.View):
     async def btn_builder(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.toggle_roles(interaction, [ROLE_BUILDER], "BUİLDER")
 
-    # 4. LEGAL
+    # 4. LEGAL (ILLEGAL ile zıt - biri varken diğeri alınamaz/otomatik çıkarılır)
     @discord.ui.button(label="LEGAL", emoji="👮", style=discord.ButtonStyle.secondary, custom_id="rs_legal")
     async def btn_legal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.toggle_roles(interaction, [ROLE_LEGAL], "LEGAL")
+        await self.toggle_roles(interaction, [ROLE_LEGAL], "LEGAL", conflicts=[ROLE_ILLEGAL])
 
-    # 5. İLLEGAL
+    # 5. İLLEGAL (LEGAL ile zıt - biri varken diğeri alınamaz/otomatik çıkarılır)
     @discord.ui.button(label="İLLEGAL", emoji="🥷", style=discord.ButtonStyle.secondary, custom_id="rs_illegal")
     async def btn_illegal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.toggle_roles(interaction, [ROLE_ILLEGAL], "İLLEGAL")
+        await self.toggle_roles(interaction, [ROLE_ILLEGAL], "İLLEGAL", conflicts=[ROLE_LEGAL])
 
     # 6. SICAK KANLI
     @discord.ui.button(label="SICAK KANLI", emoji="❤️", style=discord.ButtonStyle.secondary, custom_id="rs_sicakkanli")
