@@ -26,8 +26,8 @@ class MyBot(commands.Bot):
         from cogs.tickets import TicketPanelView, CloseTicketView
         from cogs.market import MarketView, TotemView
         from cogs.vs_talep import VSSetupView, VSChannelView
-        # yardim_bekleme.py kendi kalıcı görünümlerini kendi setup() fonksiyonunda
-        # zaten ekliyor, burada tekrar eklemeye gerek yok (aksi halde çift kayıt olur).
+        from cogs.uyari_sistemi import UyariPanel
+        from cogs.yardim_bekleme import DestekPanelView
 
         self.add_view(KayitButonView())
         self.add_view(OnayView())
@@ -35,9 +35,11 @@ class MyBot(commands.Bot):
         self.add_view(CloseTicketView())
         self.add_view(MarketView())
         self.add_view(TotemView())
+        
+        # Yeni eklenen paneller:
+        self.add_view(UyariPanel())
+        self.add_view(DestekPanelView())
 
-        # VSChannelView artık bilgiyi kanalın topic'inden okuyor,
-        # bu yüzden argümansız (varsayılan) olarak eklenmesi yeterli ve doğru.
         self.add_view(VSSetupView())
         self.add_view(VSChannelView())
 
