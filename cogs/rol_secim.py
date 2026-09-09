@@ -56,32 +56,32 @@ class RolSecimView(discord.ui.View):
         await interaction.response.send_message(mesaj, ephemeral=True)
 
     # 1. DRİVER
-    @discord.ui.button(label="DRİVER", emoji=discord.PartialEmoji(name="vanblueorange", id=760368), style=discord.ButtonStyle.secondary, custom_id="rs_driver")
+    @discord.ui.button(label="DRİVER", emoji="🚐", style=discord.ButtonStyle.secondary, custom_id="rs_driver")
     async def btn_driver(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.toggle_roles(interaction, [ROLE_DRIVER], "DRİVER")
 
     # 2. PVP (İki rol birden)
-    @discord.ui.button(label="PVP", emoji=discord.PartialEmoji(name="adminhexagon", id=72943), style=discord.ButtonStyle.secondary, custom_id="rs_pvp")
+    @discord.ui.button(label="PVP", emoji="⚔️", style=discord.ButtonStyle.secondary, custom_id="rs_pvp")
     async def btn_pvp(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.toggle_roles(interaction, [ROLE_PVP, ROLE_TEMEL_KADEME], "PVP")
 
     # 3. BUİLDER
-    @discord.ui.button(label="BUİLDER", emoji=discord.PartialEmoji(name="repair", id=118199), style=discord.ButtonStyle.secondary, custom_id="rs_builder")
+    @discord.ui.button(label="BUİLDER", emoji="🔨", style=discord.ButtonStyle.secondary, custom_id="rs_builder")
     async def btn_builder(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.toggle_roles(interaction, [ROLE_BUILDER], "BUİLDER")
 
     # 4. LEGAL
-    @discord.ui.button(label="LEGAL", emoji=discord.PartialEmoji(name="police", id=93405), style=discord.ButtonStyle.secondary, custom_id="rs_legal")
+    @discord.ui.button(label="LEGAL", emoji="👮", style=discord.ButtonStyle.secondary, custom_id="rs_legal")
     async def btn_legal(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.toggle_roles(interaction, [ROLE_LEGAL], "LEGAL")
 
     # 5. İLLEGAL
-    @discord.ui.button(label="İLLEGAL", emoji=discord.PartialEmoji(name="snipermask", id=6051), style=discord.ButtonStyle.secondary, custom_id="rs_illegal")
+    @discord.ui.button(label="İLLEGAL", emoji="🥷", style=discord.ButtonStyle.secondary, custom_id="rs_illegal")
     async def btn_illegal(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.toggle_roles(interaction, [ROLE_ILLEGAL], "İLLEGAL")
 
     # 6. SICAK KANLI
-    @discord.ui.button(label="SICAK KANLI", emoji=discord.PartialEmoji(name="pinkrubycrownheart", id=3912), style=discord.ButtonStyle.secondary, custom_id="rs_sicakkanli")
+    @discord.ui.button(label="SICAK KANLI", emoji="❤️", style=discord.ButtonStyle.secondary, custom_id="rs_sicakkanli")
     async def btn_sicakkanli(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.toggle_roles(interaction, [ROLE_SICAK_KANLI], "SICAK KANLI")
 
@@ -104,12 +104,8 @@ class RolSecim(commands.Cog):
         )
         embed.set_author(
             name="~ Polat", 
-            icon_url=interaction.user.display_avatar.url  # Yazar kısmına komutu kullananın profil fotoğrafını koyar
+            icon_url=interaction.user.display_avatar.url 
         )
-        
-        # Eğer fotoğrafın bir URL'si varsa buraya ekleyebilirsin:
-        # embed.set_thumbnail(url="FOTOĞRAF_LINKI_BURAYA")
-        
         embed.set_footer(text="--- işimiz herzaman kolay ---")
         embed.timestamp = discord.utils.utcnow()
 
