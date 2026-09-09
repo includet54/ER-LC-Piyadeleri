@@ -1,109 +1,184 @@
 import discord
 from discord.ext import commands, tasks
+from discord import app_commands
+import json
+import os
 import datetime
 
-ONLY_MOD_CHANNEL_ID = 1532828404347437287
+# ============================
+MODERATOR_LOG_KANALI = 1532828404347437287
+DATA_FILE = "data/mod_stats.json"
+GUNLUK_HEDEF_SANIYE = 5 * 60 * 60  # 5 saat
+# ============================
 
-# Moderatör istatistiklerini tutacağımız sözlük
-# Format: {mod_id: {"aktif_saniye": 0, "destek_sayisi": 0, "bilet_sayisi": 0}}
-mod_stats = {}
+def load_stats():
+    if not os.path.exists("data"):
+        os.makedirs("data")
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE, "r") as f:
+        try:
+            return json.load(f)
+        except:
+            return {}
 
+def save_stats(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=4)
+
+def update_mod_stat(mod_id, key, amount=1):
+    data = load_stats()
+    mod_id = str(mod_id)
+    if mod_id not in data:
+        data[mod_id] = {"voice_time": 0, "supports": 0, "tickets": 0}
+    data[mod_id][key] += amount
+    save_stats(data)
+
+def progress_bar(current, total, length=15):
+    progress = min(1.0, current / total)
+    filled = int(length * progress)
+    return "█" * filled + "░" * (length - filled)
+
+
+# ZAMAN AŞIMINI ÇÖZEN MODAL
 class DestekBitirModal(discord.ui.Modal, title="Desteği Sonlandır"):
-    soru1 = discord.ui.TextInput(
-        label="Destek nasıl sonuçlandı?",
+    sonuc = discord.ui.TextInput(
+        label="Desteği Bitir Anketi Nasıl Sonuçlandı?",
         style=discord.TextStyle.paragraph,
-        placeholder="Örn: Kullanıcının sorunu çözüldü...",
+        placeholder="Örn: Sorunu çözüldü, kurallar anlatıldı.",
         required=True
     )
-    soru2 = discord.ui.TextInput(
-        label="Eklemek istediğiniz notlar?",
-        style=discord.TextStyle.paragraph,
-        placeholder="Örn: Kullanıcıya kurallar hatırlatıldı.",
+    ekstra = discord.ui.TextInput(
+        label="Ekstra notlar (Kime destek verildi?)",
+        style=discord.TextStyle.short,
+        placeholder="Örn: @Ahmet kişisine destek verdim.",
         required=False
     )
 
-    def __init__(self, baslangic_zamani, yetkili):
+    def __init__(self, baslangic_zamani: datetime.datetime):
         super().__init__()
         self.baslangic_zamani = baslangic_zamani
-        self.yetkili = yetkili
 
     async def on_submit(self, interaction: discord.Interaction):
         bitis_zamani = discord.utils.utcnow()
-        gecen_sure = bitis_zamani - self.baslangic_zamani
-        dakika, saniye = divmod(int(gecen_sure.total_seconds()), 60)
+        fark = bitis_zamani - self.baslangic_zamani
+        dakika = int(fark.total_seconds() // 60)
+        saniye = int(fark.total_seconds() % 60)
+        sure_metni = f"{dakika} dk {saniye} sn"
 
-        # İstatistikleri güncelle
-        if self.yetkili.id not in mod_stats:
-            mod_stats[self.yetkili.id] = {"aktif_saniye": 0, "destek_sayisi": 0, "bilet_sayisi": 0}
-        mod_stats[self.yetkili.id]["destek_sayisi"] += 1
-        # Aktif saniye sistemi (örnektir, seste kalma takip ediliyorsa oradan da eklenebilir)
-        mod_stats[self.yetkili.id]["aktif_saniye"] += int(gecen_sure.total_seconds())
+        # Moderatörün destek sayısını artır
+        update_mod_stat(interaction.user.id, "supports", 1)
 
-        kanal = interaction.client.get_channel(ONLY_MOD_CHANNEL_ID)
-        embed = discord.Embed(title="Destek Sonlandırıldı", color=discord.Color.green())
-        embed.add_field(name="İlgilenen Yetkili", value=self.yetkili.mention, inline=True)
-        embed.add_field(name="Geçen Süre", value=f"{dakika} dk {saniye} sn", inline=True)
-        embed.add_field(name="Soru 1 (Sonuç)", value=self.soru1.value, inline=False)
-        if self.soru2.value:
-            embed.add_field(name="Soru 2 (Notlar)", value=self.soru2.value, inline=False)
+        kanal = interaction.guild.get_channel(MODERATOR_LOG_KANALI)
+        if kanal:
+            embed = discord.Embed(title="✅ Destek Sonlandırıldı", color=discord.Color.green())
+            embed.add_field(name="İlgilenen Yetkili", value=interaction.user.mention, inline=True)
+            embed.add_field(name="Destek Süresi", value=sure_metni, inline=True)
+            embed.add_field(name="Anket Sonucu", value=self.sonuc.value, inline=False)
+            if self.ekstra.value:
+                embed.add_field(name="Kime / Ek Notlar", value=self.ekstra.value, inline=False)
+            embed.timestamp = bitis_zamani
+            await kanal.send(embed=embed)
         
-        await kanal.send(embed=embed)
-        await interaction.response.send_message("Destek başarıyla sonlandırıldı ve loglandı.", ephemeral=True)
+        await interaction.response.send_message("Destek başarıyla sonlandırıldı ve log kanalına iletildi.", ephemeral=True)
 
-class DestekView(discord.ui.View):
-    def __init__(self, baslangic_zamani):
+
+class DestekPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        # Sadece 1 buton var, o da desteği bitir butonu. Desteği alan kişi basar.
+
+    @discord.ui.button(label="Desteği Başlat", style=discord.ButtonStyle.primary, custom_id="destek_baslat_btn")
+    async def destek_baslat(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Desteğin ne zaman başladığını tutmak için ephemeral bir mesaj ve bitir butonu yollayalım.
+        await interaction.response.send_message("Destek başlatıldı! Desteği bitirdiğinde aşağıdaki butona bas.", view=DestekBitirView(discord.utils.utcnow()), ephemeral=True)
+
+class DestekBitirView(discord.ui.View):
+    def __init__(self, baslangic_zamani: datetime.datetime):
         super().__init__(timeout=None)
         self.baslangic_zamani = baslangic_zamani
 
-    @discord.ui.button(label="Desteği Bitir", style=discord.ButtonStyle.danger, custom_id="destegi_bitir_btn")
-    async def bitir_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Modal açarak 3 saniye kuralını aşıyoruz (zaman aşımı hatası biter)
-        await interaction.response.send_modal(DestekBitirModal(self.baslangic_zamani, interaction.user))
+    @discord.ui.button(label="Desteği Bitir", style=discord.ButtonStyle.danger, custom_id="destek_bitir_btn_modal")
+    async def destek_bitir(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # İşte zaman aşımını engelleyen Modal çözümü:
+        await interaction.response.send_modal(DestekBitirModal(self.baslangic_zamani))
+
 
 class YardimBekleme(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.gunluk_istatistik.start()
+        self.active_voice_sessions = {}
+        self.gunluk_rapor.start()
 
-    # Gece 00:00'da çalışacak görev
-    # timezone.utc'ye göre saat 21:00, Türkiye saati ile gece 00:00'a denk gelir.
+    def cog_unload(self):
+        self.gunluk_rapor.cancel()
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member, before, after):
+        if member.bot: return
+
+        # Odaya girdi
+        if before.channel is None and after.channel is not None:
+            self.active_voice_sessions[member.id] = discord.utils.utcnow()
+        
+        # Odadan çıktı
+        elif before.channel is not None and after.channel is None:
+            if member.id in self.active_voice_sessions:
+                join_time = self.active_voice_sessions.pop(member.id)
+                leave_time = discord.utils.utcnow()
+                fark = (leave_time - join_time).total_seconds()
+                update_mod_stat(member.id, "voice_time", fark)
+
+    # Türkiye saatiyle gece 00:00 (UTC 21:00) 
     @tasks.loop(time=datetime.time(hour=21, minute=0, tzinfo=datetime.timezone.utc))
-    async def gunluk_istatistik(self):
-        kanal = self.bot.get_channel(ONLY_MOD_CHANNEL_ID)
-        if not kanal:
-            return
+    async def gunluk_rapor(self):
+        await self.bot.wait_until_ready()
+        kanal = self.bot.get_channel(MODERATOR_LOG_KANALI)
+        if not kanal: return
 
-        hedef_saniye = 5 * 3600 # 5 Saat
-        embed = discord.Embed(title="Günün Yetkili Analizi ve İstatistikleri", color=discord.Color.blue())
+        data = load_stats()
+        if not data:
+            return await kanal.send("📊 **Günün Özeti:** Bugün hiçbir veri kaydedilmedi.")
+
+        embed = discord.Embed(title="📊 Günlük Yetkili İstatistikleri", description="Günün analizi ve sıralama tablosu. Veriler sıfırlanıyor...", color=discord.Color.blue())
         
-        if not mod_stats:
-            embed.description = "Bugün hiçbir yetkili verisi kaydedilmedi."
-        else:
-            for mod_id, veriler in mod_stats.items():
-                aktif = veriler["aktif_saniye"]
-                oran = min(aktif / hedef_saniye, 1.0)
-                dolu_blok = int(oran * 10)
-                bos_blok = 10 - dolu_blok
-                xp_bar = "🟩" * dolu_blok + "⬛" * bos_blok
-                
-                aktif_saat, kalan = divmod(aktif, 3600)
-                aktif_dk, _ = divmod(kalan, 60)
-                
-                embed.add_field(
-                    name=f"<@{mod_id}>", 
-                    value=f"**Süre:** {aktif_saat}s {aktif_dk}d\n**İlerleme:** {xp_bar}\n**Destek Sayısı:** {veriler['destek_sayisi']}\n**Bilet Sayısı:** {veriler['bilet_sayisi']}", 
-                    inline=False
-                )
-        
+        for mod_id, stat in sorted(data.items(), key=lambda x: x[1]["voice_time"], reverse=True):
+            user = self.bot.get_user(int(mod_id))
+            if not user: continue
+            
+            # Zaman hesaplama
+            toplam_saniye = stat["voice_time"]
+            saat = int(toplam_saniye // 3600)
+            dak = int((toplam_saniye % 3600) // 60)
+            
+            # Progress bar
+            bar = progress_bar(toplam_saniye, GUNLUK_HEDEF_SANIYE)
+            hedef_durum = "✅ Tamamlandı" if toplam_saniye >= GUNLUK_HEDEF_SANIYE else "❌ Eksik"
+
+            aciklama = (
+                f"**Ses Süresi:** {saat}s {dak}dk\n"
+                f"**İlerleme:** `{bar}` ({hedef_durum})\n"
+                f"**Baktığı Destek:** {stat['supports']}\n"
+                f"**Baktığı Bilet:** {stat['tickets']}"
+            )
+            embed.add_field(name=f"👤 {user.display_name}", value=aciklama, inline=False)
+            
         await kanal.send(embed=embed)
-        # Gün sonunda istatistikleri sıfırla
-        mod_stats.clear()
+        
+        # Verileri sıfırla
+        save_stats({})
+        self.active_voice_sessions.clear()
 
-    @commands.command(name="yardim_baslat")
-    @commands.has_permissions(manage_messages=True)
-    async def yardim_baslat(self, ctx):
-        baslangic = discord.utils.utcnow()
-        await ctx.send("Destek talebi başladı. Bitirmek için butona tıklayın.", view=DestekView(baslangic))
+    @app_commands.command(name="destek-panel", description="Destek başlatma panelini kurar.")
+    @app_commands.default_permissions(administrator=True)
+    async def destek_panel(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🎧 Destek Bekleme",
+            description="Destek odasına geldiyseniz, ilgilenmek için butona basın.",
+            color=discord.Color.blue()
+        )
+        await interaction.channel.send(embed=embed, view=DestekPanelView())
+        await interaction.response.send_message("Panel kuruldu.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(YardimBekleme(bot))
