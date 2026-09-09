@@ -124,8 +124,7 @@ class RedSebepModal(discord.ui.Modal, title="❌ Reddetme Sebebi"):
         if uye:
             try:
                 await uye.send(
-                    f"❌ **{guild.name}** sunucusundaki kayıt başvurun reddedildi.
-**Sebep:** {self.sebep.value}"
+                    f"❌ **{guild.name}** sunucusundaki kayıt başvurun reddedildi.\n**Sebep:** {self.sebep.value}"
                 )
             except discord.Forbidden:
                 dm_gonderildi = False
@@ -134,16 +133,14 @@ class RedSebepModal(discord.ui.Modal, title="❌ Reddetme Sebebi"):
         yeni_embed = embed.copy()
         yeni_embed.add_field(
             name="Sonuç",
-            value=f"❌ **Reddedildi** — {interaction.user.mention}
-**Sebep:** {self.sebep.value}",
+            value=f"❌ **Reddedildi** — {interaction.user.mention}\n**Sebep:** {self.sebep.value}",
             inline=False,
         )
         yeni_embed.color = discord.Color.red()
 
         await self.orijinal_mesaj.edit(embed=yeni_embed, view=None)
 
-        ek_bilgi = "" if dm_gonderildi else "
-⚠️ Kullanıcıya DM gönderilemedi (DM'leri kapalı olabilir)."
+        ek_bilgi = "" if dm_gonderildi else "\n⚠️ Kullanıcıya DM gönderilemedi (DM'leri kapalı olabilir)."
         await interaction.response.send_message(f"Başvuru reddedildi.{ek_bilgi}", ephemeral=True)
 
 
