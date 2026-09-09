@@ -81,30 +81,41 @@ class ResmiUyariModal(discord.ui.Modal, title="Madde Numarası Girin"):
         
         yeni_seviye = mevcut_seviye + eklenen_puan
         
-        # Rolleri güncelle
         guild = interaction.guild
-        silinecekler = [guild.get_role(r) for r in [UYARI_1_ROL, UYARI_2_ROL, UYARI_3_ROL] if guild.get_role(r)]
-        await self.hedef_kullanici.remove_roles(*[r for r in silinecekler if r is not None])
-        
         verilecek_rol_id = None
         sonuc_metni = ""
         
         if yeni_seviye == 1:
+            silinecekler = [guild.get_role(r) for r in [UYARI_1_ROL, UYARI_2_ROL, UYARI_3_ROL] if guild.get_role(r)]
+            await self.hedef_kullanici.remove_roles(*[r for r in silinecekler if r is not None])
             verilecek_rol_id = UYARI_1_ROL
             sonuc_metni = "UYARI 1 rolü verildi."
         elif yeni_seviye == 2:
+            silinecekler = [guild.get_role(r) for r in [UYARI_1_ROL, UYARI_2_ROL, UYARI_3_ROL] if guild.get_role(r)]
+            await self.hedef_kullanici.remove_roles(*[r for r in silinecekler if r is not None])
             verilecek_rol_id = UYARI_2_ROL
             sonuc_metni = "UYARI 2 rolü verildi."
         elif yeni_seviye == 3:
+            silinecekler = [guild.get_role(r) for r in [UYARI_1_ROL, UYARI_2_ROL, UYARI_3_ROL] if guild.get_role(r)]
+            await self.hedef_kullanici.remove_roles(*[r for r in silinecekler if r is not None])
             verilecek_rol_id = UYARI_3_ROL
             sonuc_metni = "UYARI 3 rolü verildi."
         else: # 4 veya daha fazla, ASKIYA ALINAN
+            # Tum rolleri sil
+            silinecek_roller = [rol for rol in self.hedef_kullanici.roles if rol.id != guild.id and not rol.is_integration() and not rol.is_premium_subscriber()]
+            try:
+                await self.hedef_kullanici.remove_roles(*silinecek_roller, reason="Askıya alındığı için tüm roller temizlendi")
+            except discord.Forbidden:
+                pass # Bazi rolleri (or. botun kendinden ustte olanlari) silemeyebilir
             verilecek_rol_id = ASKIYA_ALINAN_ROL
-            sonuc_metni = "ASKIYA ALINAN ELEMAN rolü verildi. (Tüm uyarı rolleri silindi)"
+            sonuc_metni = "TÜM ROLLERİ ALINDI ve ASKIYA ALINAN ELEMAN rolü verildi."
             
         verilecek_rol = guild.get_role(verilecek_rol_id)
         if verilecek_rol:
-            await self.hedef_kullanici.add_roles(verilecek_rol)
+            try:
+                await self.hedef_kullanici.add_roles(verilecek_rol)
+            except discord.Forbidden:
+                pass
             
         # Log Kanalına Gönder
         kanal = interaction.guild.get_channel(UYARILAR_KANAL_ID)
@@ -114,7 +125,8 @@ class ResmiUyariModal(discord.ui.Modal, title="Madde Numarası Girin"):
         embed.add_field(name="Madde / İhlal", value=f"**{madde_kodu}** - {bilgi['aciklama']}", inline=False)
         embed.add_field(name="Sonuç", value=sonuc_metni, inline=False)
         
-        await kanal.send(content=f"{self.hedef_kullanici.mention}", embed=embed)
+        if kanal:
+            await kanal.send(content=f"{self.hedef_kullanici.mention}", embed=embed)
         await interaction.response.send_message(f"✅ Uyarı başarıyla işlendi ve {sonuc_metni}", ephemeral=True)
 
 
@@ -166,10 +178,14 @@ class UyariSistemi(commands.Cog):
     async def uyari_panel(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="⚠️ Sunucu Uyarı Paneli",
-            description="**Yapmanız Gerekenler :**\n"
-                        "-> Uyarı alacak kişiyi seç.\n"
-                        "-> Karşına çıkan madde numarasını doldur.\n"
-                        "-> [Sunucu Uyarı Verme Maddeleri](https://canva.link/ma7hw7a6ex9lmmw)\n",
+            description="**Yapmanız Gerekenler :**
+"
+                        "-> Uyarı alacak kişiyi seç.
+"
+                        "-> Karşına çıkan madde numarasını doldur.
+"
+                        "-> [Sunucu Uyarı Verme Maddeleri](https://canva.link/ma7hw7a6ex9lmmw)
+",
             color=discord.Color.red()
         )
         await interaction.channel.send(embed=embed, view=UyariPanel())
