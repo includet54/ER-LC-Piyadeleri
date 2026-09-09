@@ -21,13 +21,12 @@ class MyBot(commands.Bot):
                 except Exception as e:
                     print(f"Hata: {filename} → {e}")
 
-        # Kalıcı butonlar - bot yeniden başlasa bile butonlar çalışsın diye
+        # Kalıcı butonlar
         from cogs.registration import KayitButonView, OnayView
         from cogs.tickets import TicketPanelView, CloseTicketView
         from cogs.market import MarketView, TotemView
         from cogs.vs_talep import VSSetupView, VSChannelView
         from cogs.uyari_sistemi import UyariPanel
-        from cogs.yardim_bekleme import DestekPanelView
 
         self.add_view(KayitButonView())
         self.add_view(OnayView())
@@ -35,11 +34,7 @@ class MyBot(commands.Bot):
         self.add_view(CloseTicketView())
         self.add_view(MarketView())
         self.add_view(TotemView())
-        
-        # Yeni eklenen paneller:
         self.add_view(UyariPanel())
-        self.add_view(DestekPanelView())
-
         self.add_view(VSSetupView())
         self.add_view(VSChannelView())
 
