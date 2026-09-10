@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import asyncio
 
 class MusicControlView(discord.ui.View):
     def __init__(self, cog, guild_id):
@@ -19,42 +20,50 @@ class MusicControlView(discord.ui.View):
                 prefix = "▶️ " if i == state["index"] else "▫️ "
                 liste_metni += f"{prefix} **{i+1}.** {sarki.filename}\n"
             embed.description = liste_metni
-        await interaction.response.edit_message(embed=embed, view=self)
+        
+        if interaction.response.is_done():
+            await interaction.edit_original_response(embed=embed, view=self)
+        else:
+            await interaction.response.edit_message(embed=embed, view=self)
 
-    @discord.ui.button(emoji="⏮️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(emoji="⏮️", style=discord.ButtonStyle.secondary, custom_id="btn_prev")
     async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = interaction.guild.voice_client
         state = self.cog.get_state(self.guild_id)
         if vc and state["index"] > 0:
             state["index"] -= 2  # play_next fonksiyonu çağrıldığında 1 ekleyeceği için 2 eksiltiyoruz
             vc.stop()  # Mevcut şarkıyı durdurduğumuz an after eventi tetiklenir ve play_next çalışır
+            await asyncio.sleep(0.5) # Bekleme ekleyerek play_next'in indexi güncellemesine izin veriyoruz
             await self.update_panel(interaction)
         else:
             await interaction.response.send_message("❌ Önceki şarkı yok.", ephemeral=True)
 
-    @discord.ui.button(emoji="⏯️", style=discord.ButtonStyle.primary)
+    @discord.ui.button(emoji="⏯️", style=discord.ButtonStyle.primary, custom_id="btn_pause_resume")
     async def pause_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = interaction.guild.voice_client
         if vc:
             if vc.is_paused():
                 vc.resume()
+                await interaction.response.send_message("▶️ Müzik devam ettiriliyor.", ephemeral=True)
             elif vc.is_playing():
                 vc.pause()
-            await self.update_panel(interaction)
+                await interaction.response.send_message("⏸️ Müzik duraklatıldı.", ephemeral=True)
+            # update_panel yerine direkt bildirim gönderilebilir veya panel güncellenebilir
         else:
             await interaction.response.send_message("❌ Çalan bir şey yok.", ephemeral=True)
 
-    @discord.ui.button(emoji="⏭️", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(emoji="⏭️", style=discord.ButtonStyle.secondary, custom_id="btn_next")
     async def next_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = interaction.guild.voice_client
         state = self.cog.get_state(self.guild_id)
         if vc and state["index"] < len(state["queue"]) - 1:
             vc.stop()  # Mevcut şarkıyı durdurduğumuz an sonrakine geçer
+            await asyncio.sleep(0.5) # Bekleme ekleyerek play_next'in indexi güncellemesine izin veriyoruz
             await self.update_panel(interaction)
         else:
             await interaction.response.send_message("❌ Sırada başka şarkı yok.", ephemeral=True)
             
-    @discord.ui.button(emoji="⏹️", style=discord.ButtonStyle.danger)
+    @discord.ui.button(emoji="⏹️", style=discord.ButtonStyle.danger, custom_id="btn_stop")
     async def stop_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = interaction.guild.voice_client
         if vc:
@@ -97,7 +106,8 @@ class SesOynatici(commands.Cog):
             'options': '-vn'
         }
         
-        source = discord.FFmpegPCMAudio(attachment.url, **FFMPEG_OPTIONS)
+        # FFmpeg kurulu olduğundan dolayı default executable 'ffmpeg' olarak kalabilir, garanti olsun diye ekliyoruz
+        source = discord.FFmpegPCMAudio(executable="ffmpeg", source=attachment.url, **FFMPEG_OPTIONS)
         vc.play(source, after=lambda e: self.bot.loop.call_soon_threadsafe(self.play_next, guild_id))
 
     @app_commands.command(name="play-file", description="Ses kanalında mp3 dosyası oynatır")
@@ -109,12 +119,14 @@ class SesOynatici(commands.Cog):
         if not dosya.content_type or not dosya.content_type.startswith(('audio/', 'video/')):
             return await interaction.response.send_message("❌ Lütfen geçerli bir ses dosyası (örneğin .mp3) yükleyin.", ephemeral=True)
 
+        await interaction.response.defer() # İşlem biraz sürebilir, timeout olmasın diye bekletiyoruz
+
         vc = interaction.guild.voice_client
         if not vc:
             try:
                 vc = await interaction.user.voice.channel.connect()
             except Exception as e:
-                return await interaction.response.send_message(f"❌ Ses kanalına bağlanılamadı: {e}", ephemeral=True)
+                return await interaction.followup.send(f"❌ Ses kanalına bağlanılamadı: {e}", ephemeral=True)
         elif vc.channel != interaction.user.voice.channel:
             await vc.move_to(interaction.user.voice.channel)
 
@@ -123,10 +135,10 @@ class SesOynatici(commands.Cog):
 
         if not vc.is_playing() and not vc.is_paused():
             state["index"] = len(state["queue"]) - 2 
-            await interaction.response.send_message(f"🎵 **{dosya.filename}** oynatılıyor!")
+            await interaction.followup.send(f"🎵 **{dosya.filename}** oynatılıyor!")
             self.play_next(interaction.guild_id)
         else:
-            await interaction.response.send_message(f"✅ **{dosya.filename}** sıraya eklendi. (Sıra: {len(state['queue'])})")
+            await interaction.followup.send(f"✅ **{dosya.filename}** sıraya eklendi. (Sıra: {len(state['queue'])})")
 
     @app_commands.command(name="stop", description="Müziği durdurur ve botu sesten çıkarır")
     async def stop(self, interaction: discord.Interaction):
@@ -158,3 +170,4 @@ class SesOynatici(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(SesOynatici(bot))
+
