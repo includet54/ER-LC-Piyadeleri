@@ -2,6 +2,9 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
+import os
+
+MUSIC_ROLE_ID = 1547589732937240627
 
 class MusicControlView(discord.ui.View):
     def __init__(self, cog, guild_id):
@@ -18,7 +21,7 @@ class MusicControlView(discord.ui.View):
             liste_metni = ""
             for i, sarki in enumerate(state["queue"]):
                 prefix = "▶️ " if i == state["index"] else "▫️ "
-                liste_metni += f"{prefix} **{i+1}.** {sarki.filename}\n"
+                liste_metni += f"{prefix} **{i+1}.** {sarki['filename']}\n"
             embed.description = liste_metni
         
         if interaction.response.is_done():
@@ -48,7 +51,6 @@ class MusicControlView(discord.ui.View):
             elif vc.is_playing():
                 vc.pause()
                 await interaction.response.send_message("⏸️ Müzik duraklatıldı.", ephemeral=True)
-            # update_panel yerine direkt bildirim gönderilebilir veya panel güncellenebilir
         else:
             await interaction.response.send_message("❌ Çalan bir şey yok.", ephemeral=True)
 
@@ -72,6 +74,55 @@ class MusicControlView(discord.ui.View):
             await self.update_panel(interaction)
         else:
             await interaction.response.send_message("❌ Zaten seste değilim.", ephemeral=True)
+
+class LocalMusicStartView(discord.ui.View):
+    def __init__(self, cog):
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(label="▶️ Listeyi Başlat", style=discord.ButtonStyle.success, custom_id="btn_start_local")
+    async def start_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not interaction.user.voice:
+            return await interaction.response.send_message("❌ Önce bir ses kanalına girmelisiniz!", ephemeral=True)
+
+        await interaction.response.defer()
+
+        vc = interaction.guild.voice_client
+        if not vc:
+            try:
+                vc = await interaction.user.voice.channel.connect()
+            except Exception as e:
+                return await interaction.followup.send(f"❌ Ses kanalına bağlanılamadı: {e}", ephemeral=True)
+        elif vc.channel != interaction.user.voice.channel:
+            await vc.move_to(interaction.user.voice.channel)
+
+        music_dir = os.path.join(os.path.dirname(__file__), '..', 'Music')
+        if not os.path.exists(music_dir):
+            return await interaction.followup.send("❌ Music klasörü bulunamadı.", ephemeral=True)
+
+        files = [f for f in os.listdir(music_dir) if f.endswith(('.mp3', '.mp4', '.wav', '.m4a'))]
+        if not files:
+            return await interaction.followup.send("❌ Hazır müzik bulunamadı.", ephemeral=True)
+
+        state = self.cog.get_state(interaction.guild_id)
+        # Kuyruğu temizleyip hazır listeyi ekliyoruz
+        state["queue"] = [{"url": os.path.join(music_dir, f), "filename": f, "is_local": True} for f in files]
+        state["index"] = -1
+
+        if vc.is_playing() or vc.is_paused():
+            vc.stop() # stop edince otomatik sonrakini (index 0) çalar
+        else:
+            self.cog.play_next(interaction.guild_id)
+
+        view = MusicControlView(self.cog, interaction.guild_id)
+        embed = discord.Embed(title="🎶 Müzik Kuyruğu (Hazır Liste)", color=discord.Color.blue())
+        liste_metni = ""
+        for i, sarki in enumerate(state["queue"]):
+            prefix = "▶️ " if i == 0 else "▫️ "
+            liste_metni += f"{prefix} **{i+1}.** {sarki['filename']}\n"
+        embed.description = liste_metni
+
+        await interaction.followup.send("✅ Hazır müzik listesi başlatıldı!", embed=embed, view=view)
 
 
 class SesOynatici(commands.Cog):
@@ -99,19 +150,30 @@ class SesOynatici(commands.Cog):
             state["index"] = len(state["queue"]) - 1
             return
             
-        attachment = state["queue"][state["index"]]
+        item = state["queue"][state["index"]]
         
-        FFMPEG_OPTIONS = {
-            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            'options': '-vn'
-        }
+        if item.get("is_local"):
+            # Yerel dosyalarda reconnect opsiyonlarına gerek yok
+            FFMPEG_OPTIONS = {'options': '-vn'}
+        else:
+            FFMPEG_OPTIONS = {
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                'options': '-vn'
+            }
         
-        # FFmpeg kurulu olduğundan dolayı default executable 'ffmpeg' olarak kalabilir, garanti olsun diye ekliyoruz
-        source = discord.FFmpegPCMAudio(executable="ffmpeg", source=attachment.url, **FFMPEG_OPTIONS)
+        source = discord.FFmpegPCMAudio(executable="ffmpeg", source=item["url"], **FFMPEG_OPTIONS)
         vc.play(source, after=lambda e: self.bot.loop.call_soon_threadsafe(self.play_next, guild_id))
+
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.MissingRole):
+            await interaction.response.send_message("❌ Bu komutu kullanmak için **Müzik Açma İzni** rolüne sahip olmalısın!", ephemeral=True)
+        else:
+            # Diğer hataları da loglayabiliriz ama genelde botun ana error handlerı da çalışır
+            pass
 
     @app_commands.command(name="play-file", description="Ses kanalında mp3 dosyası oynatır")
     @app_commands.describe(dosya="Oynatılacak ses dosyası (mp3, wav vb.)")
+    @app_commands.checks.has_role(MUSIC_ROLE_ID)
     async def play_file(self, interaction: discord.Interaction, dosya: discord.Attachment):
         if not interaction.user.voice:
             return await interaction.response.send_message("❌ Önce bir ses kanalına girmelisiniz!", ephemeral=True)
@@ -119,7 +181,7 @@ class SesOynatici(commands.Cog):
         if not dosya.content_type or not dosya.content_type.startswith(('audio/', 'video/')):
             return await interaction.response.send_message("❌ Lütfen geçerli bir ses dosyası (örneğin .mp3) yükleyin.", ephemeral=True)
 
-        await interaction.response.defer() # İşlem biraz sürebilir, timeout olmasın diye bekletiyoruz
+        await interaction.response.defer()
 
         vc = interaction.guild.voice_client
         if not vc:
@@ -131,7 +193,7 @@ class SesOynatici(commands.Cog):
             await vc.move_to(interaction.user.voice.channel)
 
         state = self.get_state(interaction.guild_id)
-        state["queue"].append(dosya)
+        state["queue"].append({"url": dosya.url, "filename": dosya.filename, "is_local": False})
 
         if not vc.is_playing() and not vc.is_paused():
             state["index"] = len(state["queue"]) - 2 
@@ -141,6 +203,7 @@ class SesOynatici(commands.Cog):
             await interaction.followup.send(f"✅ **{dosya.filename}** sıraya eklendi. (Sıra: {len(state['queue'])})")
 
     @app_commands.command(name="stop", description="Müziği durdurur ve botu sesten çıkarır")
+    @app_commands.checks.has_role(MUSIC_ROLE_ID)
     async def stop(self, interaction: discord.Interaction):
         vc = interaction.guild.voice_client
         if vc:
@@ -151,6 +214,7 @@ class SesOynatici(commands.Cog):
             await interaction.response.send_message("❌ Bot şu an bir ses kanalında değil.", ephemeral=True)
 
     @app_commands.command(name="lists", description="Müzik kuyruğunu ve kontrol panelini gösterir")
+    @app_commands.checks.has_role(MUSIC_ROLE_ID)
     async def lists(self, interaction: discord.Interaction):
         state = self.get_state(interaction.guild_id)
         if not state["queue"]:
@@ -160,14 +224,35 @@ class SesOynatici(commands.Cog):
         liste_metni = ""
         for i, sarki in enumerate(state["queue"]):
             prefix = "▶️ " if i == state["index"] else "▫️ "
-            liste_metni += f"{prefix} **{i+1}.** {sarki.filename}\n"
+            liste_metni += f"{prefix} **{i+1}.** {sarki['filename']}\n"
             
         embed.description = liste_metni
         
         view = MusicControlView(self, interaction.guild_id)
         await interaction.response.send_message(embed=embed, view=view)
 
+    @app_commands.command(name="list-nos", description="Hazır müzik listesini gösterir ve başlatma paneli sunar")
+    @app_commands.checks.has_role(MUSIC_ROLE_ID)
+    async def list_nos(self, interaction: discord.Interaction):
+        music_dir = os.path.join(os.path.dirname(__file__), '..', 'Music')
+        if not os.path.exists(music_dir):
+            return await interaction.response.send_message("❌ Sunucuda 'Music' klasörü bulunamadı.", ephemeral=True)
+
+        files = [f for f in os.listdir(music_dir) if f.endswith(('.mp3', '.mp4', '.wav', '.m4a'))]
+        if not files:
+            return await interaction.response.send_message("❌ 'Music' klasörünün içinde hiç hazır şarkı yok.", ephemeral=True)
+
+        embed = discord.Embed(title="📂 Hazır Müzik Listesi", description="Aşağıdaki şarkılar listeye eklenecek:\n\n", color=discord.Color.green())
+        liste_metni = ""
+        for i, f in enumerate(files):
+            liste_metni += f"**{i+1}.** {f}\n"
+        embed.description += liste_metni
+
+        view = LocalMusicStartView(self)
+        await interaction.response.send_message(embed=embed, view=view)
+
 
 async def setup(bot):
     await bot.add_cog(SesOynatici(bot))
+
 
