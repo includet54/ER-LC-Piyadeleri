@@ -413,7 +413,7 @@ class MethUretimi(commands.Cog):
             market_cog.bakiye_ayarla(interaction.user.id, market_cog.bakiye_al(interaction.user.id) + kazanc)
             
             sonuc_embed = discord.Embed(title="✅ Üretim Tamamlandı!", color=discord.Color.green())
-            sonuc_embed.description = f"🎉 {interaction.user.mention} muhteşem bir iş çıkardın!\n\n🧪 **Skor:** {dogru_sayisi}/8\n💵 **Kazanılan:** {market_cog.para_formatla(kazanc)}₺"
+            sonuc_embed.description = f"🎉 {interaction.user.mention} muhteşem bir iş çıkardın!\n\n🧪 **Skor:** {dogru_sayisi}/8\n💵 **Kazanılan:** {f'{kazanc:,}'.replace(',', '.')}₺"
             
             try:
                 await interaction.user.send(embed=sonuc_embed)
