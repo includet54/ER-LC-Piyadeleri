@@ -33,6 +33,7 @@ ESYALAR = {
     "kit": {"isim": "Yardım Kiti", "emoji": "❤️‍🩹", "fiyat": 500},
     "zirh": {"isim": "Demir Zırh", "emoji": "🪖", "fiyat": 3000},
     "dokunulmazlik": {"isim": "Dokunulmazlık", "emoji": "⛔", "fiyat": 100000},
+    "meth": {"isim": "Meth Malzemeleri", "emoji": "🛢️", "fiyat": 700},
 }
 
 
@@ -104,6 +105,10 @@ class MarketView(discord.ui.View):
     @discord.ui.button(label="Dokunulmazlık - 100000₺", emoji="⛔", style=discord.ButtonStyle.gray, custom_id="market_buy_dokunulmazlik")
     async def buy_dok(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.satin_al(interaction, "dokunulmazlik")
+
+    @discord.ui.button(label="Meth Malzemeleri - 700₺", emoji="🛢️", style=discord.ButtonStyle.gray, custom_id="market_buy_meth")
+    async def buy_meth(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.satin_al(interaction, "meth")
 
 
 class TotemView(discord.ui.View):
