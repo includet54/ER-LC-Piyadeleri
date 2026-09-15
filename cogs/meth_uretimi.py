@@ -8,6 +8,11 @@ OLU_ROL_ID = 1544777693030125720
 ARANAN_ROL_ID = 1549155694714953870
 ARANANLAR_KANAL_ID = 1529545898294509589
 
+def truncate_label(text, limit=80):
+    if len(text) > limit:
+        return text[:limit-3] + "..."
+    return text
+
 SORULAR = [
     {
         "q": "Isı aniden fırladı ve karışım şiddetle fokurdamaya başladı. Saniyelerin var, ne yaparsın?",
@@ -263,12 +268,23 @@ IHBAR_SORUSU = {
 }
 
 class SoruView(discord.ui.View):
-    def __init__(self, correct_ans, user_id):
+    def __init__(self, correct_ans, user_id, options):
         super().__init__(timeout=10)
         self.correct_ans = correct_ans
         self.user_id = user_id
         self.result = None
-        self.answered = False
+
+        for idx, option_text in enumerate(options):
+            btn = discord.ui.Button(label=truncate_label(option_text), style=discord.ButtonStyle.primary, custom_id=f"soru_btn_{idx}")
+            btn.callback = self.make_callback(idx)
+            self.add_item(btn)
+
+    def make_callback(self, idx):
+        async def callback(interaction: discord.Interaction):
+            await interaction.response.edit_message(embed=discord.Embed(description="🔄 Sonraki aşamaya geçiliyor...", color=discord.Color.light_grey()), view=None)
+            self.result = (idx == self.correct_ans)
+            self.stop()
+        return callback
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
@@ -276,40 +292,27 @@ class SoruView(discord.ui.View):
             return False
         return True
 
-    async def handle_answer(self, interaction, idx):
-        self.answered = True
-        self.result = (idx == self.correct_ans)
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(view=self)
-        self.stop()
-
-    @discord.ui.button(label="1️⃣", style=discord.ButtonStyle.primary)
-    async def btn1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 0)
-
-    @discord.ui.button(label="2️⃣", style=discord.ButtonStyle.primary)
-    async def btn2(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 1)
-
-    @discord.ui.button(label="3️⃣", style=discord.ButtonStyle.primary)
-    async def btn3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 2)
-
-    @discord.ui.button(label="4️⃣", style=discord.ButtonStyle.primary)
-    async def btn4(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 3)
-
     async def on_timeout(self):
-        self.result = False
-        self.answered = False
+        self.result = None
 
 class IhbarView(discord.ui.View):
-    def __init__(self, user_id):
+    def __init__(self, user_id, options, correct_ans):
         super().__init__(timeout=15)
-        self.correct_ans = IHBAR_SORUSU["ans"]
+        self.correct_ans = correct_ans
         self.user_id = user_id
         self.result = None
+        
+        for idx, option_text in enumerate(options):
+            btn = discord.ui.Button(label=truncate_label(option_text), style=discord.ButtonStyle.danger, custom_id=f"ihbar_btn_{idx}")
+            btn.callback = self.make_callback(idx)
+            self.add_item(btn)
+
+    def make_callback(self, idx):
+        async def callback(interaction: discord.Interaction):
+            await interaction.response.edit_message(embed=discord.Embed(description="🚨 Sonuçlar değerlendiriliyor...", color=discord.Color.dark_grey()), view=None)
+            self.result = (idx == self.correct_ans)
+            self.stop()
+        return callback
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
@@ -317,31 +320,8 @@ class IhbarView(discord.ui.View):
             return False
         return True
 
-    async def handle_answer(self, interaction, idx):
-        self.result = (idx == self.correct_ans)
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(view=self)
-        self.stop()
-
-    @discord.ui.button(label="1️⃣", style=discord.ButtonStyle.danger)
-    async def btn1(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 0)
-
-    @discord.ui.button(label="2️⃣", style=discord.ButtonStyle.danger)
-    async def btn2(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 1)
-
-    @discord.ui.button(label="3️⃣", style=discord.ButtonStyle.danger)
-    async def btn3(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 2)
-
-    @discord.ui.button(label="4️⃣", style=discord.ButtonStyle.danger)
-    async def btn4(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.handle_answer(interaction, 3)
-
     async def on_timeout(self):
-        self.result = False
+        self.result = None
 
 class MethUretimi(commands.Cog):
     def __init__(self, bot):
@@ -363,6 +343,7 @@ class MethUretimi(commands.Cog):
         market_cog.esya_sil(interaction.user.id, "meth", 1)
 
         await interaction.response.send_message("🧪 **Üretim Başlıyor!** Karşına çıkacak 8 acil duruma 10 saniye içinde doğru tepkiyi vermelisin. Gözünü kırpma!", ephemeral=True)
+        await asyncio.sleep(2)
         
         # Select 8 random questions
         secilen_sorular = random.sample(SORULAR, 8)
@@ -371,31 +352,30 @@ class MethUretimi(commands.Cog):
         zaman_asimi = False
 
         for i, soru in enumerate(secilen_sorular):
-            # Karıştır
             secenekler = list(enumerate(soru["options"]))
             random.shuffle(secenekler)
             yeni_dogru = None
-            metin = f"**Soru {i+1}/8**\n{soru['q'].replace('[@kullanıcı]', interaction.user.mention)}\n\n"
+            view_options = []
             
             for index, (orj_idx, text) in enumerate(secenekler):
-                metin += f"**{index+1}️⃣** {text}\n"
+                view_options.append(text)
                 if orj_idx == soru["ans"]:
                     yeni_dogru = index
 
-            view = SoruView(correct_ans=yeni_dogru, user_id=interaction.user.id)
-            embed = discord.Embed(title="⚠️ ACİL DURUM!", description=metin, color=discord.Color.yellow())
+            view = SoruView(correct_ans=yeni_dogru, user_id=interaction.user.id, options=view_options)
+            metin = f"{soru['q'].replace('[@kullanıcı]', interaction.user.mention)}"
+            embed = discord.Embed(title=f"⚠️ ACİL DURUM! (Soru {i+1}/8)", description=metin, color=discord.Color.yellow())
             
-            msg = await interaction.followup.send(embed=embed, view=view, ephemeral=True, wait=True)
+            await interaction.edit_original_response(content=None, embed=embed, view=view)
             await view.wait()
             
             if view.result is None: # Timeout
+                await interaction.edit_original_response(content="⏰ Süren doldu, çok yavaşsın!", embed=None, view=None)
+                await asyncio.sleep(2)
                 zaman_asimi = True
-                await interaction.followup.send("⏰ Süren doldu, çok yavaşsın!", ephemeral=True)
                 break
             elif view.result:
                 dogru_sayisi += 1
-            
-            await asyncio.sleep(1) # Small delay between questions
 
         if not zaman_asimi and dogru_sayisi >= 4:
             # Başarılı
@@ -415,31 +395,31 @@ class MethUretimi(commands.Cog):
             sonuc_embed = discord.Embed(title="✅ Üretim Tamamlandı!", color=discord.Color.green())
             sonuc_embed.description = f"🎉 {interaction.user.mention} muhteşem bir iş çıkardın!\n\n🧪 **Skor:** {dogru_sayisi}/8\n💵 **Kazanılan:** {f'{kazanc:,}'.replace(',', '.')}₺"
             
+            await interaction.edit_original_response(content=None, embed=sonuc_embed, view=None)
+            
             try:
                 await interaction.user.send(embed=sonuc_embed)
-                await interaction.followup.send("📩 Üretim raporun ve kazancın DM kutuna gönderildi!", ephemeral=True)
             except:
-                await interaction.followup.send(embed=sonuc_embed, ephemeral=True)
+                pass
 
         else:
             # Başarısız -> İhbar
-            ihbar_embed = discord.Embed(title="🚨 POLİS BASKINI!", color=discord.Color.red())
-            ihbar_embed.description = "Hatalar yaptın ve polis kokuyu aldı! Kapı kırılmak üzere!\nKaçmak için son bir şansın var. 15 saniyen başladı!\n\n"
-            
             secenekler = list(enumerate(IHBAR_SORUSU["options"]))
             random.shuffle(secenekler)
             yeni_dogru = None
-            metin = f"**{IHBAR_SORUSU['q']}**\n\n"
+            view_options = []
             
             for index, (orj_idx, text) in enumerate(secenekler):
-                metin += f"**{index+1}️⃣** {text}\n"
+                view_options.append(text)
                 if orj_idx == IHBAR_SORUSU["ans"]:
                     yeni_dogru = index
                     
-            ihbar_embed.description += metin
+            view = IhbarView(user_id=interaction.user.id, options=view_options, correct_ans=yeni_dogru)
             
-            view = IhbarView(user_id=interaction.user.id)
-            await interaction.followup.send(embed=ihbar_embed, view=view, ephemeral=True)
+            ihbar_embed = discord.Embed(title="🚨 POLİS BASKINI!", color=discord.Color.red())
+            ihbar_embed.description = f"Hatalar yaptın ve polis kokuyu aldı! Kapı kırılmak üzere!\nKaçmak için son bir şansın var. 15 saniyen başladı!\n\n**{IHBAR_SORUSU['q']}**"
+            
+            await interaction.edit_original_response(content=None, embed=ihbar_embed, view=view)
             await view.wait()
             
             if view.result:
@@ -459,7 +439,7 @@ class MethUretimi(commands.Cog):
                     duyuru.set_thumbnail(url=interaction.user.display_avatar.url)
                     await kanal.send(embed=duyuru)
                 
-                await interaction.followup.send("🏃‍♂️ Kıl payı kaçtın ama artık **En Çok Aranan** listesindesin. DM kutunu kontrol et.", ephemeral=True)
+                await interaction.edit_original_response(content="🏃‍♂️ Kıl payı kaçtın ama artık **En Çok Aranan** listesindesin. DM kutunu kontrol et.", embed=None, view=None)
                 try:
                     await interaction.user.send("🏃‍♂️ Polislerden kurtuldun ancak artık tüm şehir seni arıyor. Başarısız olduğun için para kazanamadın.")
                 except:
@@ -478,7 +458,7 @@ class MethUretimi(commands.Cog):
                     except:
                         pass
                 
-                await interaction.followup.send("☠️ Hatalı hamle! Polis seni kıskıvrak yakaladı. Artık **ÖLÜ/MAHKUM** statüsündesin.", ephemeral=True)
+                await interaction.edit_original_response(content="☠️ Hatalı hamle! Polis seni kıskıvrak yakaladı. Artık **ÖLÜ/MAHKUM** statüsündesin.", embed=None, view=None)
 
 async def setup(bot):
     await bot.add_cog(MethUretimi(bot))
