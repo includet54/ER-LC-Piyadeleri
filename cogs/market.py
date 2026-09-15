@@ -273,6 +273,25 @@ class Market(commands.Cog):
         self.bakiye_ayarla(kisi.id, yeni)
         await interaction.response.send_message(f"✅ {kisi.mention} kişisinden **{para_formatla(miktar)}₺** silindi.")
 
+    @app_commands.command(name="herkese-zirh-ver", description="[KURUCU] Sunucudaki tüm üyelere 1 adet Demir Zırh verir")
+    async def herkese_zirh_ver(self, interaction: discord.Interaction):
+        if not kurucu_mu(interaction.user):
+            return await interaction.response.send_message("Bu komutu kullanma yetkin yok.", ephemeral=True)
+            
+        await interaction.response.defer()
+        
+        guild = interaction.guild
+        if not guild:
+            return await interaction.followup.send("Bu komut sadece sunucuda kullanılabilir.")
+            
+        count = 0
+        for member in guild.members:
+            if not member.bot:
+                self.esya_ekle(member.id, "zirh", 1)
+                count += 1
+                
+        await interaction.followup.send(f"✅ Sunucudaki toplam **{count}** üyeye 1 adet **🪖 Demir Zırh** başarıyla hediye edildi!")
+
     # ---------- Market ----------
     @app_commands.command(name="market-arayuz", description="Market arayüzünü DM olarak açar")
     async def market_arayuz(self, interaction: discord.Interaction):
