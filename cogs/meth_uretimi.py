@@ -326,9 +326,22 @@ class IhbarView(discord.ui.View):
 class MethUretimi(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.cooldowns = {}
 
     @app_commands.command(name="madde-uret", description="Karanlık laboratuvarında üretime başla. Riskli ve tehlikelidir!")
     async def madde_uret(self, interaction: discord.Interaction):
+        # Cooldown check
+        import time
+        now = time.time()
+        cooldown_suresi = 900 # 15 dakika = 900 saniye
+        son_kullanim = self.cooldowns.get(interaction.user.id, 0)
+        
+        if now - son_kullanim < cooldown_suresi:
+            kalan_sure = int(cooldown_suresi - (now - son_kullanim))
+            dakika = kalan_sure // 60
+            saniye = kalan_sure % 60
+            return await interaction.response.send_message(f"⏳ Çok yoruldun, polisler de civarda geziyor! Yeni bir üretim yapabilmek için **{dakika} dakika {saniye} saniye** beklemelisin.", ephemeral=True)
+
         if any(r.id == OLU_ROL_ID for r in interaction.user.roles):
             return await interaction.response.send_message("💀 Ölüler/Mahkumlar işlem yapamaz!", ephemeral=True)
         
@@ -338,6 +351,9 @@ class MethUretimi(commands.Cog):
 
         if not market_cog.esya_sahibi_mi(interaction.user.id, "meth"):
             return await interaction.response.send_message("🛢️ Bunu yapmak için önce marketten **Meth Malzemeleri** satın almalısın!", ephemeral=True)
+
+        # Üretime başarılı şekilde başlanıyor, süreyi başlat:
+        self.cooldowns[interaction.user.id] = now
 
         # Consume the item
         market_cog.esya_sil(interaction.user.id, "meth", 1)
