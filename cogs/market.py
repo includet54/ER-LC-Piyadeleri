@@ -33,6 +33,7 @@ ESYALAR = {
     "kit": {"isim": "Yardım Kiti", "emoji": "❤️‍🩹", "fiyat": 500},
     "zirh": {"isim": "Demir Zırh", "emoji": "🪖", "fiyat": 3000},
     "dokunulmazlik": {"isim": "Dokunulmazlık", "emoji": "⛔", "fiyat": 100000},
+    "meth": {"isim": "Meth Malzemeleri", "emoji": "🛢️", "fiyat": 700},
 }
 
 
@@ -104,6 +105,10 @@ class MarketView(discord.ui.View):
     @discord.ui.button(label="Dokunulmazlık - 100000₺", emoji="⛔", style=discord.ButtonStyle.gray, custom_id="market_buy_dokunulmazlik")
     async def buy_dok(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.satin_al(interaction, "dokunulmazlik")
+
+    @discord.ui.button(label="Meth Malzemeleri - 700₺", emoji="🛢️", style=discord.ButtonStyle.gray, custom_id="market_buy_meth")
+    async def buy_meth(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.satin_al(interaction, "meth")
 
 
 class TotemView(discord.ui.View):
@@ -267,6 +272,25 @@ class Market(commands.Cog):
         yeni = max(0, self.bakiye_al(kisi.id) - miktar)
         self.bakiye_ayarla(kisi.id, yeni)
         await interaction.response.send_message(f"✅ {kisi.mention} kişisinden **{para_formatla(miktar)}₺** silindi.")
+
+    @app_commands.command(name="herkese-zirh-ver", description="[KURUCU] Sunucudaki tüm üyelere 1 adet Demir Zırh verir")
+    async def herkese_zirh_ver(self, interaction: discord.Interaction):
+        if not kurucu_mu(interaction.user):
+            return await interaction.response.send_message("Bu komutu kullanma yetkin yok.", ephemeral=True)
+            
+        await interaction.response.defer()
+        
+        guild = interaction.guild
+        if not guild:
+            return await interaction.followup.send("Bu komut sadece sunucuda kullanılabilir.")
+            
+        count = 0
+        for member in guild.members:
+            if not member.bot:
+                self.esya_ekle(member.id, "zirh", 1)
+                count += 1
+                
+        await interaction.followup.send(f"✅ Sunucudaki toplam **{count}** üyeye 1 adet **🪖 Demir Zırh** başarıyla hediye edildi!")
 
     # ---------- Market ----------
     @app_commands.command(name="market-arayuz", description="Market arayüzünü DM olarak açar")

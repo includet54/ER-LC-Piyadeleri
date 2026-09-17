@@ -28,6 +28,7 @@ class MyBot(commands.Bot):
         from cogs.vs_talep import VSSetupView, VSChannelView
         from cogs.uyari_sistemi import UyariPanel
         from cogs.rol_secim import RolSecimView  # <-- BUNU EKLE
+        from cogs.izin_yonetimi import AnaIzinPaneli
 
         self.add_view(KayitButonView())
         self.add_view(OnayView())
@@ -39,6 +40,7 @@ class MyBot(commands.Bot):
         self.add_view(VSSetupView())
         self.add_view(VSChannelView())
         self.add_view(RolSecimView())  # <-- VE BUNU EKLE
+        self.add_view(AnaIzinPaneli())
 
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
