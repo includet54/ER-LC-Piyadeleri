@@ -70,7 +70,7 @@ class KufurEngel(commands.Cog):
         embed.timestamp = discord.utils.utcnow()
 
         try:
-            await log_kanal.send(embed=embed)
+            await log_kanal.send(content="<@&1542249243702726796>", embed=embed)
         except discord.Forbidden:
             pass
 
