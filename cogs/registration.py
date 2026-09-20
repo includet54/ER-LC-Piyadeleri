@@ -231,11 +231,23 @@ class Registration(commands.Cog):
         if not yetkili_mi(interaction.user):
             return await interaction.response.send_message("Yetkin yok.", ephemeral=True)
 
+        desc = (
+            "### • Kayıt olmadan önce kuralları okumayı unutmayınız.\n\n"
+            "### • Bu sunucuda düzen bozamazsınız.\n\n"
+            "### • Kayıt olduktan sonra Sohbet kanalına ilk mesajınızı gönderebilirsiniz.\n\n"
+            "### • Kayıt olmak için Roblox Profil Linkiniz gereklidir.\n\n"
+            "### • Ankette adınızı yazmak istemiyorsanız takma ad kullanabilirsiniz.\n\n"
+            "### • Kayıt ol ve sunucumuzla etkileşime geç! 🥳"
+        )
         embed = discord.Embed(
             title="📋 Kayıt Sistemi",
-            description="Sunucumuza kayıt olmak için aşağıdaki butona tıkla ve formu doldur.",
+            description=desc,
             color=discord.Color.green(),
         )
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        if interaction.guild.icon:
+            embed.set_image(url=interaction.guild.icon.url)
+            
         await interaction.channel.send(embed=embed, view=KayitButonView())
         await interaction.response.send_message("Panel gönderildi.", ephemeral=True)
 
