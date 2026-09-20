@@ -9,7 +9,8 @@ import aiohttp
 # ============================
 KAYIT_KANAL_ID = 1532831582753128530      # Kayıt butonunun olacağı kanal
 ONAY_KANAL_ID = 1532828473972752555       # Onaylama kanalı
-UYE_ROL_ID = 1533908873772273715          # Onaylanınca verilecek rol
+UYE_ROL_ID = 1533919249985437706
+WHITELIST_ROL_ID = 1533908873772273715
 ONAYLANMIS_BIREY_ROL_ID = 1534741499726663690
 ERKEK_ROL_ID = 1534736940904218755
 KIZ_ROL_ID = 1534736941600342016
@@ -170,7 +171,7 @@ class OnayView(discord.ui.View):
         cinsiyet_cevap = embed.fields[3].value.lower()
 
         # Rolleri belirleme
-        rol_idler = [UYE_ROL_ID, ONAYLANMIS_BIREY_ROL_ID]
+        rol_idler = [UYE_ROL_ID, WHITELIST_ROL_ID, ONAYLANMIS_BIREY_ROL_ID]
         if "erkek" in cinsiyet_cevap or cinsiyet_cevap.startswith("e"):
             rol_idler.append(ERKEK_ROL_ID)
         elif "kız" in cinsiyet_cevap or "kiz" in cinsiyet_cevap or cinsiyet_cevap.startswith("k"):
