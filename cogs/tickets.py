@@ -133,5 +133,34 @@ class Tickets(commands.Cog):
         await interaction.channel.send(embed=embed, view=TicketPanelView())
         await interaction.response.send_message("Panel gönderildi.", ephemeral=True)
 
+    @app_commands.command(name="ekle", description="Mevcut bilete bir kullanıcı ekler.")
+    @app_commands.describe(
+        kisi1="Bilete eklenecek 1. kullanıcı",
+        kisi2="Bilete eklenecek 2. kullanıcı (İsteğe bağlı)",
+        kisi3="Bilete eklenecek 3. kullanıcı (İsteğe bağlı)"
+    )
+    async def ekle(self, interaction: discord.Interaction, kisi1: discord.Member, kisi2: discord.Member = None, kisi3: discord.Member = None):
+        kanal = interaction.channel
+        topic = kanal.topic or ""
+        if "acan_id:" not in topic:
+            return await interaction.response.send_message("❌ Bu komut sadece bilet (ticket) kanallarında kullanılabilir.", ephemeral=True)
+            
+        acan_id = None
+        try:
+            acan_id = int(topic.split("acan_id:")[1].strip())
+        except Exception:
+            pass
+
+        if interaction.user.id != acan_id and not yetkili_mi(interaction.user):
+            return await interaction.response.send_message("❌ Bu bilete kişi ekleme yetkiniz yok.", ephemeral=True)
+
+        kisiler = [k for k in [kisi1, kisi2, kisi3] if k is not None]
+        eklenenler = []
+        for k in kisiler:
+            await kanal.set_permissions(k, view_channel=True, send_messages=True, read_message_history=True)
+            eklenenler.append(k.mention)
+            
+        await interaction.response.send_message(f"✅ Başarıyla bilete eklendi: {', '.join(eklenenler)}")
+
 async def setup(bot):
     await bot.add_cog(Tickets(bot))

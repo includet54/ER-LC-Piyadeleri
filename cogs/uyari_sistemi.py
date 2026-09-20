@@ -22,6 +22,8 @@ MADDELER = {
     "M10": {"puan": 1, "aciklama": "+18, cinsel taciz, ırkçılık, cinsiyet/yaş ayrımcılığı içeren içerik paylaşmak."},
     "M11": {"puan": 1, "aciklama": "Irkçılık ve her türlü ayrımcılık yapmak."},
     "M12": {"puan": 99, "aciklama": "1 gün içinde en az 2 uyarı almak (DOĞRUDAN ASKIYA ALINMA)."},
+    "M13": {"puan": 1, "aciklama": "Sunucuda bulunan kişilerin psikolojisini etkileyecek argo, küçümseme ve dalga geçme gibi faaliyetler yapmak."},
+    "M14": {"puan": 1, "aciklama": "Sunucumuzda düzenlenen etkinliklerde veya yapılacak olan kapışmalarda kendini abartı şekilde övmek."},
     "D1": {"puan": 1, "aciklama": "Önemli kanallara (duyuru vb.) anlamsız, boş mesajlar atmak."},
     "D2": {"puan": 1, "aciklama": "Ses kanallarında ses panelini veya sohbet kanalını gereksiz yere çağırmak."},
     "D3": {"puan": 1, "aciklama": "Ses kanallarında sürekli yolculuk yaparak gereksiz bildirim yağmuruna sebep olmak."}

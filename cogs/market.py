@@ -7,8 +7,10 @@ DATA_DIR = "data"
 BAKIYE_FILE = os.path.join(DATA_DIR, "bakiye.json")
 ENVANTER_FILE = os.path.join(DATA_DIR, "envanter.json")
 PENDING_FILE = os.path.join(DATA_DIR, "pending_kills.json")
+KATLIAM_LIMIT_FILE = os.path.join(DATA_DIR, "katliam_limit.json")
 
 GUILD_ID = 1529545898294509589
+
 
 UYE_ROL_ID = 1533908873772273715
 YONETIM_ROL_IDLERI = [
@@ -134,6 +136,7 @@ class Market(commands.Cog):
         self.bakiye = yukle(BAKIYE_FILE)
         self.envanter = yukle(ENVANTER_FILE)
         self.pending = yukle(PENDING_FILE)
+        self.katliam_limit = yukle(KATLIAM_LIMIT_FILE)
 
     # ---------- Yardımcı fonksiyonlar ----------
     def bakiye_al(self, uid):
@@ -333,12 +336,18 @@ class Market(commands.Cog):
         )
 
     # ---------- Envanter ----------
-    @app_commands.command(name="envanter", description="Bir kişinin envanterini gösterir")
-    @app_commands.describe(kisi="Envanteri görüntülenecek kişi")
-    async def envanter(self, interaction: discord.Interaction, kisi: discord.Member):
+    @app_commands.command(name="envanter", description="Kendi envanterini (veya yetkiliysen başkasınınkini) gösterir")
+    @app_commands.describe(kisi="Envanteri görüntülenecek kişi (Sadece yetkililer başkasını seçebilir)")
+    async def envanter(self, interaction: discord.Interaction, kisi: discord.Member = None):
         if not ekonomi_kullanabilir_mi(interaction.user):
             return await interaction.response.send_message("Bu komutu kullanma yetkin yok.", ephemeral=True)
-        env = self.envanter_al(kisi.id)
+            
+        target = kisi or interaction.user
+        
+        if target.id != interaction.user.id and not kurucu_mu(interaction.user) and not yetkili_mi(interaction.user):
+            return await interaction.response.send_message("❌ Sadece kendi envanterine bakabilirsin!", ephemeral=True)
+            
+        env = self.envanter_al(target.id)
         if not env:
             aciklama = "Envanterde hiç eşya yok."
         else:
@@ -348,23 +357,64 @@ class Market(commands.Cog):
                 if esya:
                     satirlar.append(f"{esya['emoji']} {esya['isim']} — **{adet}** adet")
             aciklama = "\n".join(satirlar)
-        embed = discord.Embed(title=f"🎒 {kisi.display_name} — Envanter", description=aciklama, color=discord.Color.orange())
-        embed.set_thumbnail(url=kisi.display_avatar.url)
-        await interaction.response.send_message(embed=embed)
+        embed = discord.Embed(title=f"🎒 {target.display_name} — Envanter", description=aciklama, color=discord.Color.orange())
+        embed.set_thumbnail(url=target.display_avatar.url)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="esya-ekle", description="[KURUCU] Belirtilen kişiye eşya verir.")
+    @app_commands.describe(kisi="Eşya verilecek kişi", esya_sec="Eklenecek eşya", miktar="Miktar")
+    @app_commands.choices(esya_sec=[app_commands.Choice(name=v["isim"], value=k) for k, v in ESYALAR.items()])
+    async def esya_ekle_cmd(self, interaction: discord.Interaction, kisi: discord.Member, esya_sec: app_commands.Choice[str], miktar: int):
+        if not kurucu_mu(interaction.user):
+            return await interaction.response.send_message("Bu komutu sadece Kurucu kullanabilir.", ephemeral=True)
+        if miktar <= 0:
+            return await interaction.response.send_message("Miktar 0'dan büyük olmalı.", ephemeral=True)
+            
+        self.esya_ekle(kisi.id, esya_sec.value, miktar)
+        await interaction.response.send_message(f"✅ {kisi.mention} adlı kişiye **{miktar}x {esya_sec.name}** başarıyla eklendi!", ephemeral=True)
+
+    @app_commands.command(name="esya-sil", description="[KURUCU] Belirtilen kişiden eşya siler.")
+    @app_commands.describe(kisi="Eşya silinecek kişi", esya_sec="Silinecek eşya", miktar="Miktar")
+    @app_commands.choices(esya_sec=[app_commands.Choice(name=v["isim"], value=k) for k, v in ESYALAR.items()])
+    async def esya_sil_cmd(self, interaction: discord.Interaction, kisi: discord.Member, esya_sec: app_commands.Choice[str], miktar: int):
+        if not kurucu_mu(interaction.user):
+            return await interaction.response.send_message("Bu komutu sadece Kurucu kullanabilir.", ephemeral=True)
+        if miktar <= 0:
+            return await interaction.response.send_message("Miktar 0'dan büyük olmalı.", ephemeral=True)
+            
+        basarili = self.esya_sil(kisi.id, esya_sec.value, miktar)
+        if basarili:
+            await interaction.response.send_message(f"✅ {kisi.mention} adlı kişiden **{miktar}x {esya_sec.name}** başarıyla silindi!", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"❌ {kisi.mention} adlı kişinin envanterinde **{miktar}x {esya_sec.name}** bulunmuyor (veya yetersiz).", ephemeral=True)
 
     # ---------- Katliam sistemi ----------
-    @app_commands.command(name="katliam-yap", description="Bir kişiyi öldürmeye çalışır (Bıçak gerekir)")
+    @app_commands.command(name="katliam-yap", description="Bir kişiyi öldürmeye çalışır (Günde 1 kez)")
     @app_commands.describe(kisi="Öldürmek istediğin kişi")
     async def katliam_yap(self, interaction: discord.Interaction, kisi: discord.Member):
         saldiran = interaction.user
         if not ekonomi_kullanabilir_mi(saldiran):
             return await interaction.response.send_message("Bu komutu kullanma yetkin yok.", ephemeral=True)
+        
+        import time
+        now = time.time()
+        son_kullanim = self.katliam_limit.get(str(saldiran.id), 0)
+        if now - son_kullanim < 86400:
+            kalan = int(86400 - (now - son_kullanim))
+            saat = kalan // 3600
+            dakika = (kalan % 3600) // 60
+            return await interaction.response.send_message(f"⏳ Bu komutu günde sadece 1 kez kullanabilirsin. Yeni bir katliam için **{saat} saat {dakika} dakika** beklemelisin.", ephemeral=True)
+
         if kisi.id == saldiran.id:
             return await interaction.response.send_message("Kendini öldüremezsin.", ephemeral=True)
         if any(r.id == OLU_ROL_ID for r in kisi.roles):
             return await interaction.response.send_message(f"{kisi.mention} zaten ölü.", ephemeral=True)
         if not self.esya_sahibi_mi(saldiran.id, "biçak"):
             return await interaction.response.send_message("Bu işlemi yapmak için envanterinde 🗡️ Bıçak olmalı.", ephemeral=True)
+
+        # Başarılı kullanıma geçiyoruz, süreyi kaydet:
+        self.katliam_limit[str(saldiran.id)] = now
+        kaydet(KATLIAM_LIMIT_FILE, self.katliam_limit)
 
         await interaction.response.defer()
 

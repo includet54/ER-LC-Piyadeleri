@@ -2,13 +2,16 @@ import discord
 from discord.ext import commands
 import os
 
+HOSGELDIN_KANAL_ID = 1532829955409449081
+CIKIS_KANAL_ID = 1533621981830844538
+
 class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        channel = discord.utils.get(member.guild.text_channels, name="hoşgeldiniz")
+        channel = member.guild.get_channel(HOSGELDIN_KANAL_ID)
         if channel is None:
             return
 
@@ -44,6 +47,23 @@ class Welcome(commands.Cog):
             await channel.send(content=f"Hoş geldin {member.mention} 💜", embed=embed, file=dosya)
         else:
             await channel.send(content=f"Hoş geldin {member.mention} 💜", embed=embed)
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        channel = member.guild.get_channel(CIKIS_KANAL_ID)
+        if channel is None:
+            return
+
+        embed = discord.Embed(
+            title="👋 Bir Üye Ayrıldı",
+            description=f"**{member.display_name}** ({member.mention}) aramızdan ayrıldı.",
+            color=discord.Color.red()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text=f"ID: {member.id}")
+        embed.timestamp = discord.utils.utcnow()
+
+        await channel.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Welcome(bot))
