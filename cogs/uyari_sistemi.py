@@ -77,7 +77,10 @@ YETKILI_ROLLERI = [
     1529546007635824680,  # Kurucu
     1539167256246747186,  # Üst Yönetim
     1534798061845483694,  # Yönetici
-    1537934087166369812   # Yönetim ekibi
+    1537934087166369812,  # Yönetim ekibi
+    1542249243702726796,  # Mesaj Denetimcisi
+    1547526649459777556,  # Ses Kanalı yetkilisi
+    1543075759508164659   # Takma Ad Yetkilisi
 ]
 
 YETKILI_UYARI_1 = 1551287340444549191
@@ -145,6 +148,7 @@ class ResmiUyariModal(discord.ui.Modal, title="Madde Numarası Girin"):
         verilecek_rol_id = None
         sonuc_metni = ""
         sicil_isleme = False
+        yetki_alma_hatasi = False
         
         hedef_yetkili_mi = any(r in YETKILI_ROLLERI for r in roller)
         
@@ -157,7 +161,12 @@ class ResmiUyariModal(discord.ui.Modal, title="Madde Numarası Girin"):
             yeni_seviye = mevcut_seviye + eklenen_puan
             
             silinecek_uyari_rolleri = [guild.get_role(r) for r in [YETKILI_UYARI_1, YETKILI_UYARI_2, YETKILI_UYARI_3] if guild.get_role(r)]
-            await self.hedef_kullanici.remove_roles(*[r for r in silinecek_uyari_rolleri if r is not None])
+            uyari_rolleri_sil = [r for r in silinecek_uyari_rolleri if r is not None and r in self.hedef_kullanici.roles]
+            if uyari_rolleri_sil:
+                try:
+                    await self.hedef_kullanici.remove_roles(*uyari_rolleri_sil)
+                except discord.Forbidden:
+                    pass
             
             if yeni_seviye == 1:
                 verilecek_rol_id = YETKILI_UYARI_1
@@ -170,13 +179,20 @@ class ResmiUyariModal(discord.ui.Modal, title="Madde Numarası Girin"):
                 sonuc_metni = "Yetkili Uyarı 3 rolü verildi."
             else:
                 silinecek_yetki_rolleri = [guild.get_role(r) for r in YETKILI_ROLLERI if guild.get_role(r)]
-                try:
-                    await self.hedef_kullanici.remove_roles(*[r for r in silinecek_yetki_rolleri if r is not None], reason="Yetkili Uyarı limitini aştı (Tüm yetkileri alındı).")
-                except discord.Forbidden:
-                    pass
+                gecerli_silinecekler = [r for r in silinecek_yetki_rolleri if r is not None and r in self.hedef_kullanici.roles]
+                
+                if gecerli_silinecekler:
+                    try:
+                        await self.hedef_kullanici.remove_roles(*gecerli_silinecekler, reason="Yetkili Uyarı limitini aştı (Tüm yetkileri alındı).")
+                        sonuc_metni = "TÜM YETKİLERİ ALINDI ve normal katılımcı yapıldı."
+                    except discord.Forbidden:
+                        sonuc_metni = "Yetkiler alınacaktı FAKAT botun rolü bu kişiden daha aşağıda olduğu için yetkileri alınamadı!"
+                        yetki_alma_hatasi = True
+                else:
+                    sonuc_metni = "TÜM YETKİLERİ ALINDI ve normal katılımcı yapıldı."
+                    
                 verilecek_rol_id = None
-                sonuc_metni = "TÜM YETKİLERİ ALINDI ve normal katılımcı yapıldı."
-                sicil_isleme = True
+                sicil_isleme = not yetki_alma_hatasi
                 
         else:
             mevcut_seviye = 0
