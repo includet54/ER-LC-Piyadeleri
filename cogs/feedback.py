@@ -53,7 +53,11 @@ class FeedbackCog(commands.Cog):
         puan="1 ile 5 arasında bir puan verin",
         yorum="Yetkili hakkındaki yorumunuz"
     )
+    @app_commands.checks.cooldown(1, 3600.0, key=lambda i: i.user.id)
     async def feedback_komutu(self, interaction: discord.Interaction, yetkili: discord.Member, puan: int, yorum: str):
+        if interaction.user.id == yetkili.id:
+            return await interaction.response.send_message("❌ Kendinize geri bildirim veremezsiniz!", ephemeral=True)
+
         if not hedef_yetkili_mi(yetkili):
             return await interaction.response.send_message(f"❌ Seçtiğiniz kişi yetkili kadrosunda değil. Sadece geçerli yetkilileri değerlendirebilirsiniz.", ephemeral=True)
             
@@ -87,6 +91,7 @@ class FeedbackCog(commands.Cog):
 
         await kanal.send(embed=embed)
         await interaction.response.send_message("✅ Geri bildiriminiz başarıyla anonim olarak iletildi. Teşekkür ederiz!", ephemeral=True)
+
 
     @app_commands.command(name="ortalama-puan", description="Yetkililerin toplam geri bildirim ortalamalarını listeler.")
     async def ortalama_puan(self, interaction: discord.Interaction):

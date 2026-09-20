@@ -60,7 +60,15 @@ async def on_ready():
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     import traceback
     traceback.print_exception(type(error), error, error.__traceback__)
-    msg = "Komut çalışırken bir hata oluştu."
+    
+    if isinstance(error, app_commands.CommandOnCooldown):
+        kalan_dakika = int(error.retry_after / 60)
+        if kalan_dakika > 0:
+            msg = f"⏳ Bu komutu tekrar kullanabilmek için **{kalan_dakika} dakika** beklemelisiniz."
+        else:
+            msg = f"⏳ Bu komutu tekrar kullanabilmek için **{int(error.retry_after)} saniye** beklemelisiniz."
+    else:
+        msg = "Komut çalışırken bir hata oluştu."
     try:
         if interaction.response.is_done():
             await interaction.followup.send(msg, ephemeral=True)
