@@ -4,13 +4,32 @@ import os
 
 HOSGELDIN_KANAL_ID = 1532829955409449081
 CIKIS_KANAL_ID = 1533621981830844538
+KATILIMCI_SAYISI_KANAL_ID = 1551308350615199935
 
 class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    async def guncelle_katilimci_sayisi(self, guild: discord.Guild):
+        kanal = guild.get_channel(KATILIMCI_SAYISI_KANAL_ID)
+        if kanal:
+            yeni_isim = f"══▐ {guild.member_count} KATILIMCI▐ ══"
+            if kanal.name != yeni_isim:
+                try:
+                    await kanal.edit(name=yeni_isim)
+                except Exception as e:
+                    print(f"Katılımcı sayısı güncellenirken hata: {e}")
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        # Bot başladığında sayıyı kontrol edip günceller
+        for guild in self.bot.guilds:
+            await self.guncelle_katilimci_sayisi(guild)
+
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        await self.guncelle_katilimci_sayisi(member.guild)
+        
         channel = member.guild.get_channel(HOSGELDIN_KANAL_ID)
         if channel is None:
             return
@@ -50,6 +69,8 @@ class Welcome(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
+        await self.guncelle_katilimci_sayisi(member.guild)
+        
         channel = member.guild.get_channel(CIKIS_KANAL_ID)
         if channel is None:
             return
