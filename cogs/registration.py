@@ -86,7 +86,8 @@ class KayitModal(discord.ui.Modal, title="📋 Kayıt Formu"):
         embed.set_footer(text=f"ID:{interaction.user.id}")
         embed.timestamp = discord.utils.utcnow()
 
-        await onay_kanal.send(embed=embed, view=OnayView())
+        whitelist_yetkilisi_rol_id = 1551242344190189718
+        await onay_kanal.send(content=f"<@&{whitelist_yetkilisi_rol_id}>", embed=embed, view=OnayView())
         await interaction.response.send_message(
             "✅ Kayıt başvurun alındı! Yetkililer en kısa sürede inceleyecek.", ephemeral=True
         )
