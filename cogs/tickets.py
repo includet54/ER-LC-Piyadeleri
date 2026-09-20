@@ -125,11 +125,23 @@ class Tickets(commands.Cog):
     async def ticket_panel(self, interaction: discord.Interaction):
         if not interaction.user.guild_permissions.manage_channels:
             return await interaction.response.send_message("Yetkin yok.", ephemeral=True)
+            
+        desc = (
+            "• Bilet açma işlemini boşa kullanmayınız. 😇\n"
+            "• Bilet butonuna basarak biletinizi açabilirsiniz.\n"
+            "• Bileti açtıktan sonra bot yardımcı olacaktır fakat eğer bot istediğiniz yardımı sağlayamadıysa yönetim kadrosunu etiketleyebilirsiniz. [<@&1534798061845483694>]\n"
+            "• Bileti açtığınızda saçma sorular sormayın, şımarmayın.\n"
+            "• Biz sizlere yardımcı olmak istiyoruz, nasıl yardım edebiliriz? 🌸"
+        )
         embed = discord.Embed(
             title="🎫 Destek Sistemi",
-            description="Destek almak için aşağıdaki butona tıkla, senin için özel bir kanal açılacak.",
+            description=desc,
             color=discord.Color.blurple(),
         )
+        embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
+        if interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+            
         await interaction.channel.send(embed=embed, view=TicketPanelView())
         await interaction.response.send_message("Panel gönderildi.", ephemeral=True)
 
