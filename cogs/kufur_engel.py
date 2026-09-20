@@ -80,14 +80,10 @@ class KufurEngel(commands.Cog):
             return
         
         if self.kufur_mu(message.content):
+            await self.log_kufur(message, "Yeni Mesaj")
             try:
-                await message.delete()
-                uyari = await message.channel.send(f"⚠️ {message.author.mention}, lütfen sözlerine dikkat et! Küfür/Hakaret yasaktır.")
-                await uyari.delete(delay=5)
-                await self.log_kufur(message, "Yeni Mesaj")
+                await message.author.send(f"⚠️ **{message.guild.name}** sunucusunda lütfen sözlerine dikkat et! Küfür/Hakaret içeren kelimeler kullanmak yasaktır.")
             except discord.Forbidden:
-                pass
-            except discord.NotFound:
                 pass
 
     @commands.Cog.listener()
@@ -96,12 +92,10 @@ class KufurEngel(commands.Cog):
             return
 
         if self.kufur_mu(after.content):
+            await self.log_kufur(after, "Düzenlenen Mesaj")
             try:
-                await after.delete()
-                uyari = await after.channel.send(f"⚠️ {after.author.mention}, lütfen sözlerine dikkat et! Küfür/Hakaret yasaktır.")
-                await uyari.delete(delay=5)
-                await self.log_kufur(after, "Düzenlenen Mesaj")
-            except (discord.Forbidden, discord.NotFound):
+                await after.author.send(f"⚠️ **{after.guild.name}** sunucusunda lütfen sözlerine dikkat et! Küfür/Hakaret içeren kelimeler kullanmak yasaktır.")
+            except discord.Forbidden:
                 pass
 
 async def setup(bot):
