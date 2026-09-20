@@ -40,19 +40,45 @@ def check_official_permissions(member: discord.Member) -> bool:
     if member.guild_permissions.administrator: return True
     return any(r.id in [KURUCU_ROL_ID, LEGAL_ROL_ID] for r in member.roles)
 
-def find_asset_image(base_name: str):
-    for ext in [".png", ".jpg", ".jpeg"]:
-        path = os.path.join("assets", f"{base_name}{ext}")
-        if os.path.exists(path):
-            return path
+def find_asset_image(base_name: str, is_official: bool = False):
+    variations = []
+    
+    # Format variations
+    name_underscored = base_name.replace(" ", "_")
+    prefix_under = "(LEO)_" if is_official else ""
+    prefix_space = "(LEO) " if is_official else ""
+    
+    # 1. Exact match
+    variations.append(f"{base_name}")
+    # 2. Exact match + _Original
+    variations.append(f"{base_name}_Original")
+    # 3. Underscored
+    variations.append(f"{name_underscored}")
+    # 4. Underscored + _Original (Matches most civilian vehicles)
+    variations.append(f"{name_underscored}_Original")
+    
+    if is_official:
+        variations.append(f"{prefix_space}{base_name}")
+        variations.append(f"{prefix_space}{base_name}_Original")
+        variations.append(f"{prefix_under}{name_underscored}")
+        variations.append(f"{prefix_under}{name_underscored}_Original") # Matches most official vehicles
+
+    for var in variations:
+        for ext in [".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
+            path = os.path.join("assets", f"{var}{ext}")
+            if os.path.exists(path):
+                return path
     return None
 
 class MapView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    async def send_map(self, interaction: discord.Interaction, map_name: str):
+    async def send_map(self, interaction: discord.Interaction, map_name: str, fallback_file: str = None):
         img_path = find_asset_image(map_name)
+        if not img_path and fallback_file:
+            img_path = find_asset_image(fallback_file)
+            
         embed = discord.Embed(title=f"🗺️ {map_name}", color=discord.Color.blue())
         if img_path:
             dosya = discord.File(img_path, filename="map.png")
@@ -64,11 +90,11 @@ class MapView(discord.ui.View):
 
     @discord.ui.button(label="Harita 2025", style=discord.ButtonStyle.primary, custom_id="map_2025")
     async def btn_2025(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.send_map(interaction, "Harita 2025")
+        await self.send_map(interaction, "Harita 2025", fallback_file="In-Game Map December 23 2025")
 
     @discord.ui.button(label="Harita 2026", style=discord.ButtonStyle.primary, custom_id="map_2026")
     async def btn_2026(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.send_map(interaction, "Harita 2026")
+        await self.send_map(interaction, "Harita 2026", fallback_file="Street Map v3 March 22 2026")
 
 class AssetsCog(commands.Cog):
     def __init__(self, bot):
@@ -83,7 +109,7 @@ class AssetsCog(commands.Cog):
         if arac not in CIVILIAN_VEHICLES:
             return await interaction.response.send_message("❌ Belirtilen sivil araç bulunamadı. Lütfen listeden geçerli bir araç seçin.", ephemeral=True)
 
-        img_path = find_asset_image(arac)
+        img_path = find_asset_image(arac, is_official=False)
         embed = discord.Embed(title=f"🚗 {arac}", description="Bu sivil araçla ilgili özellikler:\n*(Buraya araç özellikleri eklenebilir)*", color=discord.Color.green())
         
         if img_path:
@@ -110,7 +136,7 @@ class AssetsCog(commands.Cog):
         if arac not in OFFICIAL_VEHICLES:
             return await interaction.response.send_message("❌ Belirtilen resmi araç bulunamadı. Lütfen listeden geçerli bir araç seçin.", ephemeral=True)
 
-        img_path = find_asset_image(arac)
+        img_path = find_asset_image(arac, is_official=True)
         embed = discord.Embed(title=f"🚓 {arac}", description="Bu resmi araçla ilgili özellikler:\n*(Buraya polis aracı özellikleri eklenebilir)*", color=discord.Color.blue())
         
         if img_path:
