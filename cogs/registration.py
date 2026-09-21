@@ -248,8 +248,8 @@ class Registration(commands.Cog):
         )
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         
-        file = discord.File("assets/panel_banner.jpg", filename="panel_banner.jpg")
-        embed.set_image(url="attachment://panel_banner.jpg")
+        file = discord.File("assets/yeni_banner.png", filename="yeni_banner.png")
+        embed.set_image(url="attachment://yeni_banner.png")
             
         await interaction.channel.send(embed=embed, file=file, view=KayitButonView())
         await interaction.response.send_message("Panel gönderildi.", ephemeral=True)
