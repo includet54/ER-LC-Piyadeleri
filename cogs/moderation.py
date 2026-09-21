@@ -13,8 +13,15 @@ class Moderation(commands.Cog):
     async def temizle(self, ctx, miktar: int = 5):
         if miktar < 1 or miktar > 100:
             return await ctx.send("1-100 arası sayı gir.", delete_after=5)
-        await ctx.channel.purge(limit=miktar + 1)
-        await ctx.send(f"{miktar} mesaj silindi.", delete_after=3)
+        try:
+            silinenler = await ctx.channel.purge(limit=miktar + 1)
+            gercek_miktar = max(0, len(silinenler) - 1)
+            await ctx.send(f"✅ **{gercek_miktar}** mesaj başarıyla silindi.", delete_after=3)
+        except discord.NotFound:
+            # Başka biri siliyorsa veya mesaj çoktan yok olduysa hatayı yoksay
+            await ctx.send("✅ Mesajlar silindi (Bazı mesajlar önceden silinmiş olabilir).", delete_after=3)
+        except discord.HTTPException as e:
+            await ctx.send(f"⚠️ Silme işlemi sırasında bir sorun oluştu (Büyük ihtimalle limit aşımı): {e}", delete_after=5)
 
     @app_commands.command(name="kick", description="Üyeyi sunucudan atar")
     @app_commands.describe(uye="Atılacak üye", sebep="Sebep")
