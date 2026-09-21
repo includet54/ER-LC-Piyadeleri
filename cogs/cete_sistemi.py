@@ -323,8 +323,23 @@ class GangCreateModal(discord.ui.Modal, title="Yeni Çete Oluştur"):
             return await interaction.response.send_message("❌ Geçersiz Renk ID girdiniz. Lütfen görseldeki numaralardan birini yazın.", ephemeral=True)
 
         # Üyeler
-        mentions = re.findall(r'<@!?(\d+)>', self.uyeler.value)
-        unique_members = list(set(mentions))
+        raw_mentions = self.uyeler.value.replace('\n', ',').split(',')
+        unique_members_list = []
+        for rm in raw_mentions:
+            rm = rm.strip()
+            if not rm:
+                continue
+            
+            match = re.search(r'<@!?(\d+)>', rm)
+            if match:
+                unique_members_list.append(match.group(1))
+            else:
+                clean_name = rm.lstrip('@')
+                member = discord.utils.get(interaction.guild.members, name=clean_name)
+                if member:
+                    unique_members_list.append(str(member.id))
+                    
+        unique_members = list(set(unique_members_list))
         if str(interaction.user.id) in unique_members:
             unique_members.remove(str(interaction.user.id)) # Boss kendini davet edemez
             
@@ -461,6 +476,171 @@ class CeteSistemi(commands.Cog):
             save_json(DATA_FILE, {})
         if not os.path.exists(PENDING_FILE):
             save_json(PENDING_FILE, {})
+            
+        if not os.path.exists(COLORS_FILE):
+            default_colors = [
+               {"ID":"0", "Description":"Metallic Black", "Hex (Web RGB)":"#0d1116"},
+               {"ID":"1", "Description":"Metallic Graphite Black", "Hex (Web RGB)":"#1c1d21"},
+               {"ID":"2", "Description":"Metallic Black Steal", "Hex (Web RGB)":"#32383d"},
+               {"ID":"3", "Description":"Metallic Dark Silver", "Hex (Web RGB)":"#454b4f"},
+               {"ID":"4", "Description":"Metallic Silver", "Hex (Web RGB)":"#999da0"},
+               {"ID":"5", "Description":"Metallic Blue Silver", "Hex (Web RGB)":"#c2c4c6"},
+               {"ID":"6", "Description":"Metallic Steel Gray", "Hex (Web RGB)":"#979a97"},
+               {"ID":"7", "Description":"Metallic Shadow Silver", "Hex (Web RGB)":"#637380"},
+               {"ID":"8", "Description":"Metallic Stone Silver", "Hex (Web RGB)":"#63625c"},
+               {"ID":"9", "Description":"Metallic Midnight Silver", "Hex (Web RGB)":"#3c3f47"},
+               {"ID":"10", "Description":"Metallic Gun Metal", "Hex (Web RGB)":"#444e54"},
+               {"ID":"11", "Description":"Metallic Anthracite Grey", "Hex (Web RGB)":"#1d2129"},
+               {"ID":"12", "Description":"Matte Black", "Hex (Web RGB)":"#13181f"},
+               {"ID":"13", "Description":"Matte Gray", "Hex (Web RGB)":"#26282a"},
+               {"ID":"14", "Description":"Matte Light Grey", "Hex (Web RGB)":"#515554"},
+               {"ID":"15", "Description":"Util Black", "Hex (Web RGB)":"#151921"},
+               {"ID":"16", "Description":"Util Black Poly", "Hex (Web RGB)":"#1e2429"},
+               {"ID":"17", "Description":"Util Dark silver", "Hex (Web RGB)":"#333a3c"},
+               {"ID":"18", "Description":"Util Silver", "Hex (Web RGB)":"#8c9095"},
+               {"ID":"19", "Description":"Util Gun Metal", "Hex (Web RGB)":"#39434d"},
+               {"ID":"20", "Description":"Util Shadow Silver", "Hex (Web RGB)":"#506272"},
+               {"ID":"21", "Description":"Worn Black", "Hex (Web RGB)":"#1e232f"},
+               {"ID":"22", "Description":"Worn Graphite", "Hex (Web RGB)":"#363a3f"},
+               {"ID":"23", "Description":"Worn Silver Grey", "Hex (Web RGB)":"#a0a199"},
+               {"ID":"24", "Description":"Worn Silver", "Hex (Web RGB)":"#d3d3d3"},
+               {"ID":"25", "Description":"Worn Blue Silver", "Hex (Web RGB)":"#b7bfca"},
+               {"ID":"26", "Description":"Worn Shadow Silver", "Hex (Web RGB)":"#778794"},
+               {"ID":"27", "Description":"Metallic Red", "Hex (Web RGB)":"#c00e1a"},
+               {"ID":"28", "Description":"Metallic Torino Red", "Hex (Web RGB)":"#da1918"},
+               {"ID":"29", "Description":"Metallic Formula Red", "Hex (Web RGB)":"#b6111b"},
+               {"ID":"30", "Description":"Metallic Blaze Red", "Hex (Web RGB)":"#a51e23"},
+               {"ID":"31", "Description":"Metallic Graceful Red", "Hex (Web RGB)":"#7b1a22"},
+               {"ID":"32", "Description":"Metallic Garnet Red", "Hex (Web RGB)":"#8e1b1f"},
+               {"ID":"33", "Description":"Metallic Desert Red", "Hex (Web RGB)":"#6f1818"},
+               {"ID":"34", "Description":"Metallic Cabernet Red", "Hex (Web RGB)":"#49111d"},
+               {"ID":"35", "Description":"Metallic Candy Red", "Hex (Web RGB)":"#b60f25"},
+               {"ID":"36", "Description":"Metallic Sunrise Orange", "Hex (Web RGB)":"#d44a17"},
+               {"ID":"37", "Description":"Metallic Classic Gold", "Hex (Web RGB)":"#c2944f"},
+               {"ID":"38", "Description":"Metallic Orange", "Hex (Web RGB)":"#f78616"},
+               {"ID":"39", "Description":"Matte Red", "Hex (Web RGB)":"#cf1f21"},
+               {"ID":"40", "Description":"Matte Dark Red", "Hex (Web RGB)":"#732021"},
+               {"ID":"41", "Description":"Matte Orange", "Hex (Web RGB)":"#f27d20"},
+               {"ID":"42", "Description":"Matte Yellow", "Hex (Web RGB)":"#ffc91f"},
+               {"ID":"43", "Description":"Util Red", "Hex (Web RGB)":"#9c1016"},
+               {"ID":"44", "Description":"Util Bright Red", "Hex (Web RGB)":"#de0f18"},
+               {"ID":"45", "Description":"Util Garnet Red", "Hex (Web RGB)":"#8f1e17"},
+               {"ID":"46", "Description":"Worn Red", "Hex (Web RGB)":"#a94744"},
+               {"ID":"47", "Description":"Worn Golden Red", "Hex (Web RGB)":"#b16c51"},
+               {"ID":"48", "Description":"Worn Dark Red", "Hex (Web RGB)":"#371c25"},
+               {"ID":"49", "Description":"Metallic Dark Green", "Hex (Web RGB)":"#132428"},
+               {"ID":"50", "Description":"Metallic Racing Green", "Hex (Web RGB)":"#122e2b"},
+               {"ID":"51", "Description":"Metallic Sea Green", "Hex (Web RGB)":"#12383c"},
+               {"ID":"52", "Description":"Metallic Olive Green", "Hex (Web RGB)":"#31423f"},
+               {"ID":"53", "Description":"Metallic Green", "Hex (Web RGB)":"#155c2d"},
+               {"ID":"54", "Description":"Metallic Gasoline Blue Green", "Hex (Web RGB)":"#1b6770"},
+               {"ID":"55", "Description":"Matte Lime Green", "Hex (Web RGB)":"#66b81f"},
+               {"ID":"56", "Description":"Util Dark Green", "Hex (Web RGB)":"#22383e"},
+               {"ID":"57", "Description":"Util Green", "Hex (Web RGB)":"#1d5a3f"},
+               {"ID":"58", "Description":"Worn Dark Green", "Hex (Web RGB)":"#2d423f"},
+               {"ID":"59", "Description":"Worn Green", "Hex (Web RGB)":"#45594b"},
+               {"ID":"60", "Description":"Worn Sea Wash", "Hex (Web RGB)":"#65867f"},
+               {"ID":"61", "Description":"Metallic Midnight Blue", "Hex (Web RGB)":"#222e46"},
+               {"ID":"62", "Description":"Metallic Dark Blue", "Hex (Web RGB)":"#233155"},
+               {"ID":"63", "Description":"Metallic Saxony Blue", "Hex (Web RGB)":"#304c7e"},
+               {"ID":"64", "Description":"Metallic Blue", "Hex (Web RGB)":"#47578f"},
+               {"ID":"65", "Description":"Metallic Mariner Blue", "Hex (Web RGB)":"#637ba7"},
+               {"ID":"66", "Description":"Metallic Harbor Blue", "Hex (Web RGB)":"#394762"},
+               {"ID":"67", "Description":"Metallic Diamond Blue", "Hex (Web RGB)":"#d6e7f1"},
+               {"ID":"68", "Description":"Metallic Surf Blue", "Hex (Web RGB)":"#76afbe"},
+               {"ID":"69", "Description":"Metallic Nautical Blue", "Hex (Web RGB)":"#345e72"},
+               {"ID":"70", "Description":"Metallic Bright Blue", "Hex (Web RGB)":"#0b9cf1"},
+               {"ID":"71", "Description":"Metallic Purple Blue", "Hex (Web RGB)":"#2f2d52"},
+               {"ID":"72", "Description":"Metallic Spinnaker Blue", "Hex (Web RGB)":"#282c4d"},
+               {"ID":"73", "Description":"Metallic Ultra Blue", "Hex (Web RGB)":"#2354a1"},
+               {"ID":"74", "Description":"Metallic Bright Blue", "Hex (Web RGB)":"#6ea3c6"},
+               {"ID":"75", "Description":"Util Dark Blue", "Hex (Web RGB)":"#112552"},
+               {"ID":"76", "Description":"Util Midnight Blue", "Hex (Web RGB)":"#1b203e"},
+               {"ID":"77", "Description":"Util Blue", "Hex (Web RGB)":"#275190"},
+               {"ID":"78", "Description":"Util Sea Foam Blue", "Hex (Web RGB)":"#608592"},
+               {"ID":"79", "Description":"Util Lightning blue", "Hex (Web RGB)":"#2446a8"},
+               {"ID":"80", "Description":"Util Maui Blue Poly", "Hex (Web RGB)":"#4271e1"},
+               {"ID":"81", "Description":"Util Bright Blue", "Hex (Web RGB)":"#3b39e0"},
+               {"ID":"82", "Description":"Matte Dark Blue", "Hex (Web RGB)":"#1f2852"},
+               {"ID":"83", "Description":"Matte Blue", "Hex (Web RGB)":"#253aa7"},
+               {"ID":"84", "Description":"Matte Midnight Blue", "Hex (Web RGB)":"#1c3551"},
+               {"ID":"85", "Description":"Worn Dark blue", "Hex (Web RGB)":"#4c5f81"},
+               {"ID":"86", "Description":"Worn Blue", "Hex (Web RGB)":"#58688e"},
+               {"ID":"87", "Description":"Worn Light blue", "Hex (Web RGB)":"#74b5d8"},
+               {"ID":"88", "Description":"Metallic Taxi Yellow", "Hex (Web RGB)":"#ffcf20"},
+               {"ID":"89", "Description":"Metallic Race Yellow", "Hex (Web RGB)":"#fbe212"},
+               {"ID":"90", "Description":"Metallic Bronze", "Hex (Web RGB)":"#916532"},
+               {"ID":"91", "Description":"Metallic Yellow Bird", "Hex (Web RGB)":"#e0e13d"},
+               {"ID":"92", "Description":"Metallic Lime", "Hex (Web RGB)":"#98d223"},
+               {"ID":"93", "Description":"Metallic Champagne", "Hex (Web RGB)":"#9b8c78"},
+               {"ID":"94", "Description":"Metallic Pueblo Beige", "Hex (Web RGB)":"#503218"},
+               {"ID":"95", "Description":"Metallic Dark Ivory", "Hex (Web RGB)":"#473f2b"},
+               {"ID":"96", "Description":"Metallic Choco Brown", "Hex (Web RGB)":"#221b19"},
+               {"ID":"97", "Description":"Metallic Golden Brown", "Hex (Web RGB)":"#653f23"},
+               {"ID":"98", "Description":"Metallic Light Brown", "Hex (Web RGB)":"#775c3e"},
+               {"ID":"99", "Description":"Metallic Straw Beige", "Hex (Web RGB)":"#ac9975"},
+               {"ID":"100", "Description":"Metallic Moss Brown", "Hex (Web RGB)":"#6c6b4b"},
+               {"ID":"101", "Description":"Metallic Biston Brown", "Hex (Web RGB)":"#402e2b"},
+               {"ID":"102", "Description":"Metallic Beechwood", "Hex (Web RGB)":"#a4965f"},
+               {"ID":"103", "Description":"Metallic Dark Beechwood", "Hex (Web RGB)":"#46231a"},
+               {"ID":"104", "Description":"Metallic Choco Orange", "Hex (Web RGB)":"#752b19"},
+               {"ID":"105", "Description":"Metallic Beach Sand", "Hex (Web RGB)":"#bfae7b"},
+               {"ID":"106", "Description":"Metallic Sun Bleeched Sand", "Hex (Web RGB)":"#dfd5b2"},
+               {"ID":"107", "Description":"Metallic Cream", "Hex (Web RGB)":"#f7edd5"},
+               {"ID":"108", "Description":"Util Brown", "Hex (Web RGB)":"#3a2a1b"},
+               {"ID":"109", "Description":"Util Medium Brown", "Hex (Web RGB)":"#785f33"},
+               {"ID":"110", "Description":"Util Light Brown", "Hex (Web RGB)":"#b5a079"},
+               {"ID":"111", "Description":"Metallic White", "Hex (Web RGB)":"#fffff6"},
+               {"ID":"112", "Description":"Metallic Frost White", "Hex (Web RGB)":"#eaeaea"},
+               {"ID":"113", "Description":"Worn Honey Beige", "Hex (Web RGB)":"#b0ab94"},
+               {"ID":"114", "Description":"Worn Brown", "Hex (Web RGB)":"#453831"},
+               {"ID":"115", "Description":"Worn Dark Brown", "Hex (Web RGB)":"#2a282b"},
+               {"ID":"116", "Description":"Worn straw beige", "Hex (Web RGB)":"#726c57"},
+               {"ID":"117", "Description":"Brushed Steel", "Hex (Web RGB)":"#6a747c"},
+               {"ID":"118", "Description":"Brushed Black steel", "Hex (Web RGB)":"#354158"},
+               {"ID":"119", "Description":"Brushed Aluminium", "Hex (Web RGB)":"#9ba0a8"},
+               {"ID":"120", "Description":"Chrome", "Hex (Web RGB)":"#5870a1"},
+               {"ID":"121", "Description":"Worn Off White", "Hex (Web RGB)":"#eae6de"},
+               {"ID":"122", "Description":"Util Off White", "Hex (Web RGB)":"#dfddd0"},
+               {"ID":"123", "Description":"Worn Orange", "Hex (Web RGB)":"#f2ad2e"},
+               {"ID":"124", "Description":"Worn Light Orange", "Hex (Web RGB)":"#f9a458"},
+               {"ID":"125", "Description":"Metallic Securicor Green", "Hex (Web RGB)":"#83c566"},
+               {"ID":"126", "Description":"Worn Taxi Yellow", "Hex (Web RGB)":"#f1cc40"},
+               {"ID":"127", "Description":"police car blue", "Hex (Web RGB)":"#4cc3da"},
+               {"ID":"128", "Description":"Matte Green", "Hex (Web RGB)":"#4e6443"},
+               {"ID":"129", "Description":"Matte Brown", "Hex (Web RGB)":"#bcac8f"},
+               {"ID":"130", "Description":"Worn Orange", "Hex (Web RGB)":"#f8b658"},
+               {"ID":"131", "Description":"Matte White", "Hex (Web RGB)":"#fcf9f1"},
+               {"ID":"132", "Description":"Worn White", "Hex (Web RGB)":"#fffffb"},
+               {"ID":"133", "Description":"Worn Olive Army Green", "Hex (Web RGB)":"#81844c"},
+               {"ID":"134", "Description":"Pure White", "Hex (Web RGB)":"#ffffff"},
+               {"ID":"135", "Description":"Hot Pink", "Hex (Web RGB)":"#f21f99"},
+               {"ID":"136", "Description":"Salmon pink", "Hex (Web RGB)":"#fdd6cd"},
+               {"ID":"137", "Description":"Metallic Vermillion Pink", "Hex (Web RGB)":"#df5891"},
+               {"ID":"138", "Description":"Orange", "Hex (Web RGB)":"#f6ae20"},
+               {"ID":"139", "Description":"Green", "Hex (Web RGB)":"#b0ee6e"},
+               {"ID":"140", "Description":"Blue", "Hex (Web RGB)":"#08e9fa"},
+               {"ID":"141", "Description":"Mettalic Black Blue", "Hex (Web RGB)":"#0a0c17"},
+               {"ID":"142", "Description":"Metallic Black Purple", "Hex (Web RGB)":"#0c0d18"},
+               {"ID":"143", "Description":"Metallic Black Red", "Hex (Web RGB)":"#0e0d14"},
+               {"ID":"144", "Description":"hunter green", "Hex (Web RGB)":"#9f9e8a"},
+               {"ID":"145", "Description":"Metallic Purple", "Hex (Web RGB)":"#621276"},
+               {"ID":"146", "Description":"Metaillic V Dark Blue", "Hex (Web RGB)":"#0b1421"},
+               {"ID":"147", "Description":"MODSHOP BLACK1", "Hex (Web RGB)":"#11141a"},
+               {"ID":"148", "Description":"Matte Purple", "Hex (Web RGB)":"#6b1f7b"},
+               {"ID":"149", "Description":"Matte Dark Purple", "Hex (Web RGB)":"#1e1d22"},
+               {"ID":"150", "Description":"Metallic Lava Red", "Hex (Web RGB)":"#bc1917"},
+               {"ID":"151", "Description":"Matte Forest Green", "Hex (Web RGB)":"#2d362a"},
+               {"ID":"152", "Description":"Matte Olive Drab", "Hex (Web RGB)":"#696748"},
+               {"ID":"153", "Description":"Matte Desert Brown", "Hex (Web RGB)":"#7a6c55"},
+               {"ID":"154", "Description":"Matte Desert Tan", "Hex (Web RGB)":"#c3b492"},
+               {"ID":"155", "Description":"Matte Foilage Green", "Hex (Web RGB)":"#5a6352"},
+               {"ID":"156", "Description":"DEFAULT ALLOY COLOR", "Hex (Web RGB)":"#81827f"},
+               {"ID":"157", "Description":"Epsilon Blue", "Hex (Web RGB)":"#afd6e4"},
+               {"ID":"158", "Description":"Pure Gold", "Hex (Web RGB)":"#7a6440"},
+               {"ID":"159", "Description":"Brushed Gold", "Hex (Web RGB)":"#7f6a48"}
+            ]
+            save_json(COLORS_FILE, default_colors)
         
         self.bot.add_view(GangPanelView())
 
