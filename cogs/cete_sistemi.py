@@ -7,9 +7,10 @@ import re
 import random
 from datetime import datetime, timedelta
 
-DATA_FILE = "data/cete_data.json"
-PENDING_FILE = "data/cete_pending.json"
-COLORS_FILE = "data/colors.json"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_FILE = os.path.join(BASE_DIR, "data", "cete_data.json")
+PENDING_FILE = os.path.join(BASE_DIR, "data", "cete_pending.json")
+COLORS_FILE = os.path.join(BASE_DIR, "data", "colors.json")
 
 BOSS_ROLE_ID = 1551552841716334592
 UNDERBOSS_ROLE_ID = 1551553107492601876
@@ -305,10 +306,19 @@ class GangCreateModal(discord.ui.Modal, title="Yeni Çete Oluştur"):
         # Renk
         colors_data = load_json(COLORS_FILE)
         valid_color = False
+        user_input_color = self.cete_rengi.value.strip()
+        try:
+            normalized_color_id = str(int(user_input_color))
+        except ValueError:
+            normalized_color_id = user_input_color
+            
         for c in colors_data:
-            if str(c["ID"]) == self.cete_rengi.value.strip():
+            if str(c["ID"]) == normalized_color_id:
                 valid_color = True
+                # Rengi değişkende güncelle ki JSON'a kaydederken düzgün halini kullansın
+                user_input_color = normalized_color_id 
                 break
+                
         if not valid_color:
             return await interaction.response.send_message("❌ Geçersiz Renk ID girdiniz. Lütfen görseldeki numaralardan birini yazın.", ephemeral=True)
 
@@ -336,7 +346,7 @@ class GangCreateModal(discord.ui.Modal, title="Yeni Çete Oluştur"):
             
         embed = discord.Embed(title=f"Çete Başvurusu: {self.cete_adi.value}", description="⏳ Üyelerin onayı bekleniyor...", color=discord.Color.yellow())
         embed.add_field(name="Boss", value=interaction.user.mention, inline=False)
-        embed.add_field(name="Çete Rengi (ID)", value=self.cete_rengi.value, inline=True)
+        embed.add_field(name="Çete Rengi (ID)", value=user_input_color, inline=True)
         embed.add_field(name="Parsel", value=self.parsel_kodu.value, inline=True)
         embed.add_field(name="Davet Edilen", value=str(len(unique_members)), inline=True)
         embed.add_field(name="Onaylayan", value="0", inline=True)
@@ -346,7 +356,7 @@ class GangCreateModal(discord.ui.Modal, title="Yeni Çete Oluştur"):
 
         pending_data[request_id] = {
             "name": self.cete_adi.value.strip(),
-            "color_id": self.cete_rengi.value.strip(),
+            "color_id": user_input_color,
             "parsel": self.parsel_kodu.value.strip(),
             "boss": str(interaction.user.id),
             "story": self.hikaye.value.strip(),
@@ -444,8 +454,9 @@ class NewMemberInviteView(discord.ui.View):
 class CeteSistemi(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        if not os.path.exists("data"):
-            os.makedirs("data")
+        data_dir = os.path.join(BASE_DIR, "data")
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
         if not os.path.exists(DATA_FILE):
             save_json(DATA_FILE, {})
         if not os.path.exists(PENDING_FILE):
