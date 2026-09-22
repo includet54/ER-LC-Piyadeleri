@@ -595,14 +595,14 @@ class AyrilmaView(discord.ui.View):
         for child in self.children:
             child.disabled = True
             
-        action_text = "İnfaz edildi!" if infaz else "Sokağa fırlatıldı!"
+        action_text = "İnfaz edildi!" if infaz else "Serbest bırakıldı!"
         await interaction.response.edit_message(content=f"{interaction.message.content}\n\n✅ İşlem tamamlandı: **{action_text}**", view=self)
 
-    @discord.ui.button(label="İnfaz Et", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="İnfaz Et", emoji="🩸", style=discord.ButtonStyle.danger)
     async def infaz_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_leave(interaction, True)
         
-    @discord.ui.button(label="Sokağa Fırlat", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Bırak Gitsin", emoji="🚪", style=discord.ButtonStyle.secondary)
     async def sokak_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await self.process_leave(interaction, False)
 class CeteSistemi(commands.Cog):
