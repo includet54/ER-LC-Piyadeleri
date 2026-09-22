@@ -14,8 +14,10 @@ COLORS_FILE = os.path.join(BASE_DIR, "data", "colors.json")
 
 BOSS_ROLE_ID = 1551552841716334592
 UNDERBOSS_ROLE_ID = 1551553107492601876
+INFAZ_ROLE_ID = 1544777693030125720
 LOG_CHANNEL_ID = 1551547117024190474
 BOT_KOMUT_CHANNEL_ID = 1544809399296589885
+CETE_BILDIRIM_CHANNEL_ID = 1551964863725838346
 GANG_PANEL_CHANNEL_ID = 1551345902868889671
 
 VALID_PARSELLER = ["700","701","702","703","704","705","706","709","504","505","506","1103","1109","1112"]
@@ -79,7 +81,7 @@ class AdminRejectModal(discord.ui.Modal, title="Çete Reddetme Sebebi"):
 
         # Boss'a bildir
         try:
-            komut_kanal = interaction.client.get_channel(BOT_KOMUT_CHANNEL_ID)
+            komut_kanal = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
             await komut_kanal.send(f"❌ <@{boss_id}>, **{req['name']}** adlı çete kurma talebiniz yetkililer tarafından reddedildi.\n**Sebep:** {self.sebep.value}")
         except:
             pass
@@ -210,7 +212,7 @@ class AdminApprovalView(discord.ui.View):
         del pending[self.request_id]
         save_json(PENDING_FILE, pending)
 
-        komut_kanal = guild.get_channel(BOT_KOMUT_CHANNEL_ID)
+        komut_kanal = guild.get_channel(CETE_BILDIRIM_CHANNEL_ID)
         await komut_kanal.send(f"🎉 <@{boss_id}>, **{req['name']}** çeteniz başarıyla onaylandı ve kuruldu! Kanallarınıza göz atabilirsiniz.")
 
     @discord.ui.button(label="Reddet", style=discord.ButtonStyle.red, custom_id="admin_gang_reject")
@@ -288,7 +290,7 @@ class GangInviteView(discord.ui.View):
                 del pending[self.request_id]
                 save_json(PENDING_FILE, pending)
                 
-                komut_kanal = interaction.client.get_channel(BOT_KOMUT_CHANNEL_ID)
+                komut_kanal = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
                 await komut_kanal.send(f"❌ <@{req['boss']}>, **{req['name']}** çeteniz için yeterli onay alınamadığından başvuru iptal edildi.")
             else:
                 embed.description = "⏳ Üyelerin onayı bekleniyor..."
@@ -391,7 +393,7 @@ class GangCreateModal(discord.ui.Modal, title="Yeni Çete Oluştur"):
         save_json(PENDING_FILE, pending_data)
 
         # Davetiyeleri at
-        bot_komut = interaction.client.get_channel(BOT_KOMUT_CHANNEL_ID)
+        bot_komut = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
         for uid in unique_members:
             view = GangInviteView(request_id, uid)
             await bot_komut.send(content=f"🔔 Merhaba <@{uid}>! **{self.cete_adi.value}** çetesi lideri <@{interaction.user.id}> sizi çetesine davet ediyor. Katılmayı kabul ediyor musunuz?", view=view)
@@ -423,7 +425,7 @@ class NewMemberInviteView(discord.ui.View):
         for child in self.children:
             child.disabled = True
             
-        komut_kanal = interaction.client.get_channel(BOT_KOMUT_CHANNEL_ID)
+        komut_kanal = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
         
         if not accepted:
             await interaction.response.edit_message(content=f"{interaction.message.content}\n**Yanıtınız:** ❌ Reddedildi", view=self)
@@ -475,6 +477,134 @@ class NewMemberInviteView(discord.ui.View):
         await self.handle_response(interaction, False)
 
 
+class UyeCikarView(discord.ui.View):
+    def __init__(self, cete_id, target_member):
+        super().__init__(timeout=300)
+        self.cete_id = cete_id
+        self.target_member = target_member
+        
+    async def remove_user_from_gang(self, interaction: discord.Interaction, infaz: bool):
+        cete_data = load_json(DATA_FILE)
+        if self.cete_id not in cete_data:
+            return await interaction.response.send_message("❌ Çete bulunamadı.", ephemeral=True)
+            
+        cete = cete_data[self.cete_id]
+        if str(self.target_member.id) not in cete["members"]:
+            return await interaction.response.send_message("❌ Bu kişi çetede değil.", ephemeral=True)
+            
+        cete["members"].remove(str(self.target_member.id))
+        if str(self.target_member.id) in cete.get("underbosses", []):
+            cete["underbosses"].remove(str(self.target_member.id))
+        save_json(DATA_FILE, cete_data)
+        
+        try:
+            gang_role = interaction.guild.get_role(int(cete["role_id"]))
+            if gang_role:
+                await self.target_member.remove_roles(gang_role)
+                
+            underboss_role = interaction.guild.get_role(UNDERBOSS_ROLE_ID)
+            if underboss_role:
+                await self.target_member.remove_roles(underboss_role)
+                
+            if infaz:
+                infaz_role = interaction.guild.get_role(INFAZ_ROLE_ID)
+                if infaz_role:
+                    await self.target_member.add_roles(infaz_role)
+        except Exception as e:
+            print("Rol düzenleme hatası:", e)
+            
+        try:
+            text_channel = interaction.guild.get_channel(int(cete["text_channel"]))
+            msg = await text_channel.fetch_message(int(cete["info_msg_id"]))
+            embed = msg.embeds[0]
+            for i, field in enumerate(embed.fields):
+                if field.name == "Üyeler":
+                    embed.set_field_at(i, name="Üyeler", value=" ".join([f"<@{u}>" for u in cete["members"]]), inline=False)
+                    break
+            await msg.edit(embed=embed)
+        except:
+            pass
+            
+        for child in self.children:
+            child.disabled = True
+        
+        action_text = "İnfaz edildi!" if infaz else "Sokağa fırlatıldı!"
+        await interaction.response.edit_message(content=f"✅ {self.target_member.mention} başarıyla {action_text}", view=self)
+
+    @discord.ui.button(label="İnfaz Et", style=discord.ButtonStyle.danger)
+    async def infaz_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.remove_user_from_gang(interaction, True)
+        
+    @discord.ui.button(label="Sokağa Fırlat", style=discord.ButtonStyle.secondary)
+    async def sokak_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.remove_user_from_gang(interaction, False)
+
+class AyrilmaView(discord.ui.View):
+    def __init__(self, cete_id: str, target_member_id: int):
+        super().__init__(timeout=86400)
+        self.cete_id = cete_id
+        self.target_member_id = target_member_id
+        
+    async def process_leave(self, interaction: discord.Interaction, infaz: bool):
+        cete_data = load_json(DATA_FILE)
+        if self.cete_id not in cete_data:
+            return await interaction.response.send_message("❌ Çete artık mevcut değil.", ephemeral=True)
+            
+        cete = cete_data[self.cete_id]
+        if str(interaction.user.id) != cete["boss"]:
+            return await interaction.response.send_message("❌ Bu işlemi yalnızca çetenin Boss'u yapabilir!", ephemeral=True)
+            
+        if str(self.target_member_id) not in cete["members"]:
+            return await interaction.response.send_message("❌ Bu kişi zaten çetede değil.", ephemeral=True)
+            
+        cete["members"].remove(str(self.target_member_id))
+        if str(self.target_member_id) in cete.get("underbosses", []):
+            cete["underbosses"].remove(str(self.target_member_id))
+        save_json(DATA_FILE, cete_data)
+        
+        target_member = interaction.guild.get_member(self.target_member_id)
+        if target_member:
+            try:
+                gang_role = interaction.guild.get_role(int(cete["role_id"]))
+                if gang_role:
+                    await target_member.remove_roles(gang_role)
+                    
+                underboss_role = interaction.guild.get_role(UNDERBOSS_ROLE_ID)
+                if underboss_role:
+                    await target_member.remove_roles(underboss_role)
+                    
+                if infaz:
+                    infaz_role = interaction.guild.get_role(INFAZ_ROLE_ID)
+                    if infaz_role:
+                        await target_member.add_roles(infaz_role)
+            except Exception as e:
+                print("Rol düzenleme hatası:", e)
+                
+        try:
+            text_channel = interaction.guild.get_channel(int(cete["text_channel"]))
+            msg = await text_channel.fetch_message(int(cete["info_msg_id"]))
+            embed = msg.embeds[0]
+            for i, field in enumerate(embed.fields):
+                if field.name == "Üyeler":
+                    embed.set_field_at(i, name="Üyeler", value=" ".join([f"<@{u}>" for u in cete["members"]]), inline=False)
+                    break
+            await msg.edit(embed=embed)
+        except:
+            pass
+            
+        for child in self.children:
+            child.disabled = True
+            
+        action_text = "İnfaz edildi!" if infaz else "Sokağa fırlatıldı!"
+        await interaction.response.edit_message(content=f"{interaction.message.content}\n\n✅ İşlem tamamlandı: **{action_text}**", view=self)
+
+    @discord.ui.button(label="İnfaz Et", style=discord.ButtonStyle.danger)
+    async def infaz_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_leave(interaction, True)
+        
+    @discord.ui.button(label="Sokağa Fırlat", style=discord.ButtonStyle.secondary)
+    async def sokak_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_leave(interaction, False)
 class CeteSistemi(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -742,10 +872,10 @@ class CeteSistemi(commands.Cog):
         cete = cete_data[cete_id]
         
         view = NewMemberInviteView(cete_id, cete["name"], boss_uid, str(kisi.id))
-        bot_komut = interaction.client.get_channel(BOT_KOMUT_CHANNEL_ID)
+        bot_komut = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
         await bot_komut.send(content=f"🔔 Merhaba {kisi.mention}! **{cete['name']}** çetesi lideri {interaction.user.mention} sizi çetesine davet ediyor. Katılmayı kabul ediyor musunuz?", view=view)
         
-        await interaction.response.send_message(f"✅ {kisi.mention} kişisine davetiye gönderildi! (Kanal: <#{BOT_KOMUT_CHANNEL_ID}>)", ephemeral=True)
+        await interaction.response.send_message(f"✅ {kisi.mention} kişisine davetiye gönderildi! (Kanal: <#{CETE_BILDIRIM_CHANNEL_ID}>)", ephemeral=True)
 
     @app_commands.command(name="cete-kapa", description="Belirtilen çeteyi kapatır ve tüm verilerini (roller, kanallar) siler.")
     @app_commands.describe(cete_adi="Kapatılacak çetenin adı")
@@ -806,5 +936,66 @@ class CeteSistemi(commands.Cog):
         await interaction.followup.send(f"✅ **{cete['name']}** çetesi başarıyla kapatıldı! Kanalları ve rolleri tamamen silindi.")
 
 
+    @app_commands.command(name="uye-cikar", description="Çetenizden bir üyeyi atarsınız (En az 4 üye varken çalışır).")
+    @app_commands.describe(kisi="Çıkarılacak kişi")
+    async def uye_cikar(self, interaction: discord.Interaction, kisi: discord.Member):
+        cete_data = load_json(DATA_FILE)
+        boss_uid = str(interaction.user.id)
+        
+        cete_id = None
+        for cid, c in cete_data.items():
+            if c["boss"] == boss_uid:
+                cete_id = cid
+                break
+                
+        if not cete_id:
+            return await interaction.response.send_message("❌ Siz bir çete lideri (Boss) değilsiniz!", ephemeral=True)
+            
+        cete = cete_data[cete_id]
+        if str(kisi.id) not in cete["members"]:
+            return await interaction.response.send_message("❌ Seçtiğiniz kişi çetenizde bulunmuyor!", ephemeral=True)
+            
+        if str(kisi.id) == boss_uid:
+            return await interaction.response.send_message("❌ Kendinizi çeteden çıkaramazsınız!", ephemeral=True)
+            
+        if len(cete["members"]) <= 3:
+            return await interaction.response.send_message("❌ Çeteden üye çıkarabilmek için çetenizde en az 4 kişi bulunmalıdır (3 kişi kuralı).", ephemeral=True)
+            
+        view = UyeCikarView(cete_id, kisi)
+        await interaction.response.send_message(f"Kişiyi ({kisi.mention}) çeteden nasıl çıkarmak istersiniz?", view=view, ephemeral=True)
+
+    @app_commands.command(name="ceteden-ayril", description="Bulunduğunuz çeteden ayrılma isteği gönderir.")
+    async def ceteden_ayril(self, interaction: discord.Interaction):
+        cete_data = load_json(DATA_FILE)
+        user_uid = str(interaction.user.id)
+        
+        cete_id = None
+        for cid, c in cete_data.items():
+            if user_uid in c["members"]:
+                cete_id = cid
+                break
+                
+        if not cete_id:
+            return await interaction.response.send_message("❌ Herhangi bir çeteye üye değilsiniz!", ephemeral=True)
+            
+        cete = cete_data[cete_id]
+        
+        if cete["boss"] == user_uid:
+            return await interaction.response.send_message("❌ Boss olarak çeteden ayrılamazsınız! Çeteyi dağıtmak için yöneticilere başvurmalısınız.", ephemeral=True)
+            
+        if len(cete["members"]) <= 3:
+            return await interaction.response.send_message("❌ Çeteniz şu an 3 kişi. Siz ayrılırsanız çete dağılacağı için doğrudan ayrılamazsınız, yetkililerle görüşün.", ephemeral=True)
+            
+        view = AyrilmaView(cete_id, interaction.user.id)
+        bildirim_kanal = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
+        
+        if bildirim_kanal:
+            await bildirim_kanal.send(
+                content=f"🔔 <@{cete['boss']}>, {interaction.user.mention} çeteden ayrılmak istiyor. Bu kişi için nasıl bir yol izleyeceksiniz?",
+                view=view
+            )
+            await interaction.response.send_message("✅ Ayrılma isteğiniz çete liderine bildirildi.", ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Bildirim kanalı bulunamadı.", ephemeral=True)
 async def setup(bot):
     await bot.add_cog(CeteSistemi(bot))
