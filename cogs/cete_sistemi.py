@@ -747,6 +747,64 @@ class CeteSistemi(commands.Cog):
         
         await interaction.response.send_message(f"✅ {kisi.mention} kişisine davetiye gönderildi! (Kanal: <#{BOT_KOMUT_CHANNEL_ID}>)", ephemeral=True)
 
+    @app_commands.command(name="cete-kapa", description="Belirtilen çeteyi kapatır ve tüm verilerini (roller, kanallar) siler.")
+    @app_commands.describe(cete_adi="Kapatılacak çetenin adı")
+    @app_commands.default_permissions(administrator=True)
+    async def cete_kapa(self, interaction: discord.Interaction, cete_adi: str):
+        cete_data = load_json(DATA_FILE)
+        
+        target_cid = None
+        for cid, c in cete_data.items():
+            if c["name"].lower() == cete_adi.lower():
+                target_cid = cid
+                break
+                
+        if not target_cid:
+            return await interaction.response.send_message(f"❌ '{cete_adi}' adında bir çete bulunamadı.", ephemeral=True)
+            
+        cete = cete_data[target_cid]
+        await interaction.response.defer(ephemeral=True) 
+        
+        # Kanallari sil
+        try:
+            tc = interaction.guild.get_channel(int(cete["text_channel"]))
+            if tc: await tc.delete()
+        except: pass
+        
+        try:
+            vc = interaction.guild.get_channel(int(cete["voice_channel"]))
+            if vc: await vc.delete()
+        except: pass
+        
+        # Rolu sil
+        try:
+            role = interaction.guild.get_role(int(cete["role_id"]))
+            if role: await role.delete()
+        except: pass
+        
+        # Boss / Underboss global rollerini temizle
+        boss_role = interaction.guild.get_role(BOSS_ROLE_ID)
+        underboss_role = interaction.guild.get_role(UNDERBOSS_ROLE_ID)
+        
+        if boss_role:
+            try:
+                b_member = interaction.guild.get_member(int(cete["boss"]))
+                if b_member: await b_member.remove_roles(boss_role)
+            except: pass
+            
+        if underboss_role:
+            for ub_id in cete.get("underbosses", []):
+                try:
+                    ub_member = interaction.guild.get_member(int(ub_id))
+                    if ub_member: await ub_member.remove_roles(underboss_role)
+                except: pass
+        
+        # JSON'dan kaldir
+        del cete_data[target_cid]
+        save_json(DATA_FILE, cete_data)
+        
+        await interaction.followup.send(f"✅ **{cete['name']}** çetesi başarıyla kapatıldı! Kanalları ve rolleri tamamen silindi.")
+
 
 async def setup(bot):
     await bot.add_cog(CeteSistemi(bot))
