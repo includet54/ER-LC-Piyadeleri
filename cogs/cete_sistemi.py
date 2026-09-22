@@ -138,19 +138,28 @@ class AdminApprovalView(discord.ui.View):
                     await member.add_roles(boss_role)
         
         # 3. Kategorileri Bul / Oluştur
+        illegal_role = guild.get_role(1539249508314259567)
+        base_cat_overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False)
+        }
+        if illegal_role:
+            base_cat_overwrites[illegal_role] = discord.PermissionOverwrite(view_channel=True, send_messages=False, connect=False)
+            
         text_category = discord.utils.get(guild.categories, name="Çeteler Sınırsız Ticket")
         if not text_category:
-            text_category = await guild.create_category("Çeteler Sınırsız Ticket")
+            text_category = await guild.create_category("Çeteler Sınırsız Ticket", overwrites=base_cat_overwrites)
             
         voice_category = discord.utils.get(guild.categories, name="Çete Ses kanalları")
         if not voice_category:
-            voice_category = await guild.create_category("Çete Ses kanalları")
+            voice_category = await guild.create_category("Çete Ses kanalları", overwrites=base_cat_overwrites)
 
         # İzinler
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(view_channel=True, send_messages=False, connect=False),
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
             new_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True)
         }
+        if illegal_role:
+            overwrites[illegal_role] = discord.PermissionOverwrite(view_channel=True, send_messages=False, connect=False)
 
         # 4. Kanalları Oluştur
         text_channel_name = f"{req['name'].replace(' ', '-').lower()}_sınırsız_ticket"
