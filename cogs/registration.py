@@ -30,21 +30,52 @@ def yetkili_mi(member: discord.Member) -> bool:
     return any(rol.id in YETKILI_ROL_IDLERI for rol in member.roles)
 
 
-async def roblox_kullanici_adi_al(link: str):
-    eslesme = re.search(r"/users/(\d+)", link)
-    if not eslesme:
-        return None
-    user_id = eslesme.group(1)
-    url = f"https://users.roblox.com/v1/users/{user_id}"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
-                if resp.status != 200:
-                    return None
-                data = await resp.json()
-                return data.get("name")
-    except Exception:
-        return None
+async def roblox_kullanici_bul(bilgi: str):
+    bilgi = bilgi.strip()
+    user_id = None
+    username = None
+
+    eslesme = re.search(r"/users/(\d+)", bilgi)
+    if eslesme:
+        user_id = eslesme.group(1)
+    elif bilgi.isdigit():
+        user_id = bilgi
+
+    async with aiohttp.ClientSession() as session:
+        if user_id:
+            url = f"https://users.roblox.com/v1/users/{user_id}"
+            try:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        username = data.get("name")
+            except Exception:
+                pass
+        else:
+            url = "https://users.roblox.com/v1/usernames/users"
+            try:
+                async with session.post(url, json={"usernames": [bilgi], "excludeBannedUsers": False}, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get("data") and len(data["data"]) > 0:
+                            user_id = str(data["data"][0]["id"])
+                            username = data["data"][0]["name"]
+            except Exception:
+                pass
+
+        avatar_url = None
+        if user_id:
+            avatar_api = f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={user_id}&size=420x420&format=Png&isCircular=false"
+            try:
+                async with session.get(avatar_api, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if data.get("data") and len(data["data"]) > 0:
+                            avatar_url = data["data"][0].get("imageUrl")
+            except Exception:
+                pass
+
+    return username, user_id, avatar_url
 
 
 class KayitModal(discord.ui.Modal, title="📋 Kayıt Formu"):
@@ -55,8 +86,8 @@ class KayitModal(discord.ui.Modal, title="📋 Kayıt Formu"):
         required=True,
     )
     roblox_link = discord.ui.TextInput(
-        label="Roblox Profil Linkini yapıştır",
-        placeholder="https://www.roblox.com/users/123456789/profile",
+        label="Roblox Adı, ID'si veya Linki",
+        placeholder="Örn: Builderman, 156, veya Link",
         max_length=200,
         required=True,
     )
@@ -185,7 +216,7 @@ class OnayView(discord.ui.View):
         except discord.Forbidden:
             pass
 
-        roblox_ad = await roblox_kullanici_adi_al(roblox_link)
+        roblox_ad, roblox_id, roblox_avatar = await roblox_kullanici_bul(roblox_link)
         if roblox_ad is None:
             roblox_ad = "RobloxKullanıcı"
 
@@ -199,6 +230,22 @@ class OnayView(discord.ui.View):
             await uye.send(f"✅ **{guild.name}** sunucusundaki kayıt başvurun onaylandı! Hoş geldin 🎉")
         except discord.Forbidden:
             pass
+            
+        kayit_log_kanal = interaction.client.get_channel(1552306929571733635)
+        if kayit_log_kanal:
+            log_embed = discord.Embed(
+                title="Yeni Üye Kaydı",
+                description=f"{uye.mention} aramıza katıldı!",
+                color=discord.Color.green()
+            )
+            log_embed.add_field(name="Roblox Adı", value=roblox_ad, inline=False)
+            if roblox_id:
+                log_embed.add_field(name="Roblox ID", value=roblox_id, inline=False)
+                log_embed.add_field(name="Roblox Profil", value=f"[Profile Git](https://www.roblox.com/users/{roblox_id}/profile)", inline=False)
+            if roblox_avatar:
+                log_embed.set_thumbnail(url=roblox_avatar)
+                
+            await kayit_log_kanal.send(content=uye.mention, embed=log_embed)
 
         yeni_embed = embed.copy()
         yeni_embed.add_field(
