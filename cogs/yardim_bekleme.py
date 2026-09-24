@@ -68,208 +68,29 @@ class DestekBitirModal(discord.ui.Modal, title="Desteği Sonlandır"):
         # Only Moderatör Kanalına Log Gönder
         log_kanal = interaction.guild.get_channel(ONLY_MOD_KANALI)
         if log_kanal:
-            embed = discord.Embed(title="✅ Destek Tamamlandı", color=discord.Color.green())
-            embed.add_field(name="İlgilenen Yetkili", value=interaction.user.mention, inline=True)
-            embed.add_field(name="Katılımcı", value=f"<@{self.yardim_isteyen_id}>", inline=True)
-            embed.add_field(name="Destek Süresi", value=sure_metni, inline=True)
-            embed.add_field(name="Açıklama / Sonuç", value=self.sonuc.value, inline=False)
-            await log_kanal.send(embed=embed)
-
-        # Mesajdaki butonları devre dışı bırak
-        await interaction.message.edit(content=f"✅ {interaction.user.mention} desteği anket doldurarak sonlandırdı.", view=None, embed=None)
-        await interaction.followup.send("Destek başarıyla sonlandırıldı ve log iletildi.", ephemeral=True)
-
-
-class DestekAktifView(discord.ui.View):
-    def __init__(self, yetkili_id: int, yardim_isteyen_id: int, baslangic_zamani: datetime.datetime):
-        super().__init__(timeout=None)
-        self.yetkili_id = yetkili_id
-        self.yardim_isteyen_id = yardim_isteyen_id
-        self.baslangic_zamani = baslangic_zamani
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.yetkili_id:
-            await interaction.response.send_message("❌ Sadece desteği devralan yetkili bu işlemi yapabilir!", ephemeral=True)
-            return False
-        return True
-
-    async def _kick_everyone_from_yardim(self, guild):
-        kanal = guild.get_channel(YARDIM_VC_ID)
-        if kanal:
-            for uye in list(kanal.members):
-                try:
-                    await uye.move_to(None)
-                except Exception:
-                    pass
-
-    @discord.ui.button(label="Desteği Bitir", style=discord.ButtonStyle.success)
-    async def bitir_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Önce herkesi sesten at, sonra anketi göster
-        await self._kick_everyone_from_yardim(interaction.guild)
-        await interaction.response.send_modal(DestekBitirModal(self.baslangic_zamani, self.yardim_isteyen_id))
-
-    @discord.ui.button(label="Boş", style=discord.ButtonStyle.secondary)
-    async def bos_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-        
-        # Herkesi sesten at
-        await self._kick_everyone_from_yardim(interaction.guild)
-        
-        # Log gönder
-        log_kanal = interaction.guild.get_channel(ONLY_MOD_KANALI)
-        if log_kanal:
-            embed = discord.Embed(title="ℹ️ Destek Boş Çıktı", color=discord.Color.light_grey())
-            embed.description = f"{interaction.user.mention}, <@{self.yardim_isteyen_id}> kullanıcısının desteğini **'Boş'** olarak sonuçlandırdı."
-            await log_kanal.send(embed=embed)
-
-        await interaction.message.edit(content=f"ℹ️ {interaction.user.mention} desteği boş olarak sonlandırdı.", view=None, embed=None)
-        await interaction.followup.send("Kullanıcı boş çıktığı için destek sonlandırıldı.", ephemeral=True)
-
-
-class DevralView(discord.ui.View):
-    def __init__(self, yardim_isteyen_id: int):
-        super().__init__(timeout=None)
-        self.yardim_isteyen_id = yardim_isteyen_id
-
-    @discord.ui.button(label="Katılımcıyı Devral", style=discord.ButtonStyle.success, emoji="✅")
-    async def devral_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-        guild = interaction.guild
-        yardim_isteyen = guild.get_member(self.yardim_isteyen_id)
-        yardim_kanal = guild.get_channel(YARDIM_VC_ID)
-
-        if not yardim_isteyen or not yardim_isteyen.voice:
-            await interaction.followup.send("❌ Katılımcı şu anda seste değil!", ephemeral=True)
-            await interaction.message.edit(content="❌ Katılımcı sesten ayrıldığı için işlem iptal edildi.", view=None, embed=None)
-            return
-
-        # Katılımcıyı YARDIM kanalına çek ve susturmasını kaldır
-        try:
-            await yardim_isteyen.move_to(yardim_kanal)
-            await yardim_isteyen.edit(mute=False)
-        except discord.Forbidden:
-            await interaction.followup.send("❌ Kullanıcıyı taşımak veya susturmasını açmak için gerekli yetkiye sahip değilim.", ephemeral=True)
-            return
-        except Exception:
-            pass
-
-        # Tuşa basan yetkili eğer bir sesteyse onu da YARDIM kanalına çek
-        if interaction.user.voice and interaction.user.voice.channel:
-            try:
-                await interaction.user.move_to(yardim_kanal)
-            except Exception:
-                pass
-
-        yeni_icerik = f"✅ {interaction.user.mention}, <@{self.yardim_isteyen_id}> adlı kullanıcının destek talebini devraldı."
-        
-        # Butonları Desteği Bitir / Boş olarak güncelle
-        view = DestekAktifView(interaction.user.id, self.yardim_isteyen_id, discord.utils.utcnow())
-        await interaction.message.edit(content=yeni_icerik, view=view, embed=None)
-
-    @discord.ui.button(label="Katılımcıyı Beklemeden Çıkar", style=discord.ButtonStyle.danger, emoji="✖️")
-    async def cikar_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
-        guild = interaction.guild
-        yardim_isteyen = guild.get_member(self.yardim_isteyen_id)
-
-        # Eğer adam hâlâ yardım bekleme odasındaysa odadan at
-        if yardim_isteyen and yardim_isteyen.voice and yardim_isteyen.voice.channel and yardim_isteyen.voice.channel.id == YARDIM_BEKLEME_VC_ID:
-            try:
-                await yardim_isteyen.move_to(None)
-            except Exception:
-                pass
-
-        # Log gönder
-        log_kanal = guild.get_channel(ONLY_MOD_KANALI)
-        if log_kanal:
-            embed = discord.Embed(title="👢 Katılımcı Atıldı", color=discord.Color.red())
-            embed.description = f"{interaction.user.mention}, <@{self.yardim_isteyen_id}> kullanıcısını **Yardım Bekleme** kanalından beklemeden çıkardı."
-            await log_kanal.send(embed=embed)
-
-        await interaction.message.edit(content=f"✖️ {interaction.user.mention}, katılımcıyı beklemeden çıkardı.", view=None, embed=None)
-
-
-class YardimBekleme(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-        self.active_voice_sessions = {}
-        self.gunluk_rapor.start()
-
-    
-    @app_commands.command(name="destek-bildir", description="Belirtilen kullanıcıyı destek bekleme odasına yönlendirir.")
-    @app_commands.describe(
-        kisi="Çağrılacak kişi",
-        sebep="Çağrı sebebi",
-        tahmini_sure="Tahmini destek süresi"
-    )
-    async def destek_bildir(self, interaction: discord.Interaction, kisi: discord.Member, sebep: str, tahmini_sure: str):
-        admin_roles = {
-            1529546007635824680: "Kurucu",
-            1539167256246747186: "Üst Yönetim",
-            1534798061845483694: "Yönetici",
-            1537934087166369812: "Yönetim Ekibi",
-            1551241753137254611: "Senior Staff",
-            1551241634094645288: "Staff",
-            1551241468985737376: "Trial Staff"
-        }
-        
-        yetkili_rol_adi = "Yetkili"
-        for role_id, role_name in admin_roles.items():
-            if discord.utils.get(interaction.user.roles, id=role_id):
-                yetkili_rol_adi = role_name
-                break
-                
-        user_roles = {
-            1539249508314259567: "İllegal",
-            1539318613498929193: "Legal"
-        }
-        
-        kisi_rol_adi = "Sivil"
-        for role_id, role_name in user_roles.items():
-            if discord.utils.get(kisi.roles, id=role_id):
-                kisi_rol_adi = role_name
-                break
-                
-        def get_next_destek_id():
-            id_file = "data/destek_id.json"
-            if not os.path.exists("data"):
-                os.makedirs("data")
-            if not os.path.exists(id_file):
-                last_id = 0
-            else:
-                try:
-                    with open(id_file, "r") as f:
-                        data = json.load(f)
-                        last_id = data.get("last_id", 0)
-                except:
-                    last_id = 0
-            new_id = last_id + 1
-            with open(id_file, "w") as f:
-                json.dump({"last_id": new_id}, f)
-            return f"PRP-{new_id:05d}"
-            
-        destek_id = get_next_destek_id()
-        
-        embed = discord.Embed(
+            embed = discord.Embed(
             description=(
-                f"# ✉️ Destek Çağrı Bildirimi\n"
+                f"## ✉️ Destek Çağrı Bildirimi\n"
                 f"Kullanıcı destek bekleme ses kanalına yönlendirildi.\n"
                 f"{kisi.mention} | {kisi_rol_adi}\n"
-                f"_____________________________________________________________________________________________________________________________\n"
-                f"# 📌Çağrı Bilgisi\n"
-                f"## **Çağrı ID:** {destek_id}\n"
-                f"## **Kullanıcı:** {kisi.mention} | {kisi_rol_adi}\n"
-                f"## **Çağıran Yetkili:** {interaction.user.mention} | {yetkili_rol_adi}\n"
-                f"## **Süre:** {tahmini_sure}\n"
-                f"_____________________________________________________________________________________________________________________________\n"
-                f"# ✨Yönlendirme\n"
-                f"## **Sebep:** {sebep}\n"
-                f"## **Lütfen [Yardım bekleme](https://discord.com/channels/1529545898294509589/1532829788824404274) ses kanalına geçiniz. Yetkili hazır olduğunda destek odasına alınacaksınız.**"
+                f"---\n"
+                f"## 📌Çağrı Bilgisi\n"
+                f"**Çağrı ID:** {destek_id}\n"
+                f"**Kullanıcı:** {kisi.mention} | {kisi_rol_adi}\n"
+                f"**Çağıran Yetkili:** {interaction.user.mention} | {yetkili_rol_adi}\n"
+                f"**Süre:** {tahmini_sure}\n"
+                f"---\n"
+                f"### ✨Yönlendirme\n"
+                f"**Sebep:** {sebep}\n"
+                f"Lütfen [Yardım bekleme](https://discord.com/channels/1529545898294509589/1532829788824404274) ses kanalına geçiniz. Yetkili hazır olduğunda destek odasına alınacaksınız."
             ),
             color=discord.Color.from_rgb(43, 45, 49)
         )
         
-        if interaction.guild.icon:
+        LOGO_URL = "https://files.catbox.moe/m3e09z.png"
+        if LOGO_URL.startswith("http"):
+            embed.set_thumbnail(url=LOGO_URL)
+        elif interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
             
         target_channel = interaction.client.get_channel(1552041858530672670)
