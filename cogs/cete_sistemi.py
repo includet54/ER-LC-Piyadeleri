@@ -215,7 +215,7 @@ class AdminApprovalView(discord.ui.View):
         save_json(PENDING_FILE, pending)
 
         komut_kanal = guild.get_channel(CETE_BILDIRIM_CHANNEL_ID)
-        await komut_kanal.send(f\"🎉 <@{boss_id}>, **{req['name']}** çeteniz başarıyla onaylandı ve kuruldu! Kanallarınıza göz atabilirsiniz.\", delete_after=15)
+        await komut_kanal.send(f"🎉 <@{boss_id}>, **{req['name']}** çeteniz başarıyla onaylandı ve kuruldu! Kanallarınıza göz atabilirsiniz.", delete_after=15)
         await update_admin_gang_panel(interaction.client)
 
     @discord.ui.button(label="Reddet", style=discord.ButtonStyle.red, custom_id="admin_gang_reject")

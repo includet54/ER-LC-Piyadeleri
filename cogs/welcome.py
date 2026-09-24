@@ -30,6 +30,14 @@ class Welcome(commands.Cog):
     async def on_member_join(self, member):
         await self.guncelle_katilimci_sayisi(member.guild)
         
+        # Kayıtsız rolünü ver
+        kayitsiz_rol = member.guild.get_role(1542271426386591894)
+        if kayitsiz_rol:
+            try:
+                await member.add_roles(kayitsiz_rol, reason="Sunucuya katıldı")
+            except Exception:
+                pass
+        
         channel = member.guild.get_channel(HOSGELDIN_KANAL_ID)
         if channel is None:
             return

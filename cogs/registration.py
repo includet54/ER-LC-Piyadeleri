@@ -216,6 +216,14 @@ class OnayView(discord.ui.View):
         except discord.Forbidden:
             pass
 
+        # Kayıtsız rolünü sil
+        kayitsiz_rol = guild.get_role(1542271426386591894)
+        if kayitsiz_rol in uye.roles:
+            try:
+                await uye.remove_roles(kayitsiz_rol, reason="Kayıt tamamlandı")
+            except Exception:
+                pass
+
         roblox_ad, roblox_id, roblox_avatar = await roblox_kullanici_bul(roblox_link)
         if roblox_ad is None:
             roblox_ad = "RobloxKullanıcı"
