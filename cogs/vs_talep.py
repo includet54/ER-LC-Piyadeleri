@@ -151,6 +151,15 @@ class VSRequestView(View):
         victim = self.selected_user
         vs_type = self.selected_type
 
+        # Zaten açık bir talebi olup olmadığını kontrol et
+        kategori = guild.get_channel(VS_KATEGORI_ID)
+        if kategori:
+            for channel in kategori.text_channels:
+                rid, vid, vtype = parse_channel_topic(channel)
+                if rid == requester.id:
+                    await interaction.followup.send("❌ Zaten açık bir VS talebiniz bulunuyor. Mevcut kanalınız kapanmadan yenisini açamazsınız!", ephemeral=True)
+                    return
+
         # Kanal ismi
         channel_name = f"vs-{requester.display_name[:10]}-vs-{victim.display_name[:10]}".lower().replace(" ", "-")
 

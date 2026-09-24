@@ -215,7 +215,7 @@ class AdminApprovalView(discord.ui.View):
         save_json(PENDING_FILE, pending)
 
         komut_kanal = guild.get_channel(CETE_BILDIRIM_CHANNEL_ID)
-        await komut_kanal.send(f"🎉 <@{boss_id}>, **{req['name']}** çeteniz başarıyla onaylandı ve kuruldu! Kanallarınıza göz atabilirsiniz.")
+        await komut_kanal.send(f\"🎉 <@{boss_id}>, **{req['name']}** çeteniz başarıyla onaylandı ve kuruldu! Kanallarınıza göz atabilirsiniz.\", delete_after=15)
         await update_admin_gang_panel(interaction.client)
 
     @discord.ui.button(label="Reddet", style=discord.ButtonStyle.red, custom_id="admin_gang_reject")
@@ -244,10 +244,11 @@ class GangInviteView(discord.ui.View):
         req["invited"][self.invited_user_id] = "accepted" if accepted else "rejected"
         save_json(PENDING_FILE, pending)
         
-        # Butonları devre dışı bırak
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(content=f"{interaction.message.content}\n**Yanıtınız:** {'✅ Kabul Edildi' if accepted else '❌ Reddedildi'}", view=self)
+        try:
+            await interaction.message.delete()
+        except:
+            pass
+        await interaction.response.send_message(f"Yanıtınız kaydedildi: {'✅ Kabul Edildi' if accepted else '❌ Reddedildi'}", ephemeral=True)
         
         await self.update_log_message(interaction, req)
 
@@ -423,13 +424,14 @@ class NewMemberInviteView(discord.ui.View):
         if str(interaction.user.id) != self.invited_user_id:
             return await interaction.response.send_message("Bu davet sizin için değil!", ephemeral=True)
 
-        for child in self.children:
-            child.disabled = True
-            
         komut_kanal = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
         
         if not accepted:
-            await interaction.response.edit_message(content=f"{interaction.message.content}\n**Yanıtınız:** ❌ Reddedildi", view=self)
+            try:
+                await interaction.message.delete()
+            except:
+                pass
+            await interaction.response.send_message("Daveti reddettiniz.", ephemeral=True)
             await komut_kanal.send(f"❌ <@{self.boss_id}>, <@{self.invited_user_id}> çeteye davetinizi **reddetti**.")
             return
 
@@ -439,7 +441,11 @@ class NewMemberInviteView(discord.ui.View):
             return await interaction.response.send_message("Çete artık mevcut değil.", ephemeral=True)
 
         if is_user_in_any_gang(self.invited_user_id):
-            await interaction.response.edit_message(content=f"{interaction.message.content}\n**Yanıtınız:** ❌ İptal (Zaten bir çetedesiniz)", view=self)
+            try:
+                await interaction.message.delete()
+            except:
+                pass
+            await interaction.response.send_message("Zaten bir çetedesiniz, davet iptal edildi.", ephemeral=True)
             return await komut_kanal.send(f"❌ <@{self.boss_id}>, <@{self.invited_user_id}> zaten bir çetede olduğu için eklenemedi.")
 
         cete = cete_data[self.cete_id]
