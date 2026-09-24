@@ -223,24 +223,20 @@ class YardimBekleme(commands.Cog):
             description=(
                 f"## ✉️ Destek Çağrı Bildirimi\n"
                 f"Kullanıcı destek bekleme ses kanalına yönlendirildi.\n"
-                f"{kisi.mention} | {kisi_rol_adi}"
+                f"{kisi.mention} | {kisi_rol_adi}\n\n"
+                f"---\n\n"
+                f"### 📌 Çağrı Bilgisi\n"
+                f"• **Çağrı ID:** {destek_id}\n"
+                f"• **Kullanıcı:** {kisi.mention} | {kisi_rol_adi}\n"
+                f"• **Çağıran Yetkili:** {interaction.user.mention} | {yetkili_rol_adi}\n"
+                f"• **Süre:** {tahmini_sure}\n\n"
+                f"---\n\n"
+                f"### ✨ Yönlendirme\n"
+                f"• **Sebep:** {sebep}\n\n"
+                f"Lütfen [Yardım bekleme](https://discord.com/channels/1529545898294509589/1532829788824404274) ses kanalına geçiniz. Yetkili hazır olduğunda destek odasına alınacaksınız."
             ),
-            color=discord.Color.gold()
+            color=discord.Color.from_rgb(254, 231, 92) # #FEE75C in RGB
         )
-        
-        cagri_bilgisi = (
-            f"- **Çağrı ID:** {destek_id}\n"
-            f"- **Kullanıcı:** {kisi.mention} | {kisi_rol_adi}\n"
-            f"- **Çağıran Yetkili:** {interaction.user.mention} | {yetkili_rol_adi}\n"
-            f"- **Süre:** {tahmini_sure}"
-        )
-        embed.add_field(name="📌 Çağrı Bilgisi", value=cagri_bilgisi, inline=False)
-        
-        yonlendirme = (
-            f"- **Sebep:** {sebep}\n\n"
-            f"Lütfen [Yardım bekleme](https://discord.com/channels/1529545898294509589/1532829788824404274) ses kanalına geçiniz. Yetkili hazır olduğunda destek odasına alınacaksınız."
-        )
-        embed.add_field(name="✨ Yönlendirme", value=yonlendirme, inline=False)
         
         embed.set_footer(text="© 2026 PRP")
         
