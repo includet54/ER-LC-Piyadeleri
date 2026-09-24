@@ -251,29 +251,27 @@ class YardimBekleme(commands.Cog):
         destek_id = get_next_destek_id()
         
         embed = discord.Embed(
-            title="Kullanıcı destek bekleme ses kanalına yönlendirildi.",
-            description=f"{kisi.mention} | {kisi_rol_adi}",
+            description=(
+                f"# ✉️ Destek Çağrı Bildirimi\n"
+                f"Kullanıcı destek bekleme ses kanalına yönlendirildi.\n"
+                f"{kisi.mention} | {kisi_rol_adi}\n"
+                f"_____________________________________________________________________________________________________________________________\n"
+                f"# 📌Çağrı Bilgisi\n"
+                f"## **Çağrı ID:** {destek_id}\n"
+                f"## **Kullanıcı:** {kisi.mention} | {kisi_rol_adi}\n"
+                f"## **Çağıran Yetkili:** {interaction.user.mention} | {yetkili_rol_adi}\n"
+                f"## **Süre:** {tahmini_sure}\n"
+                f"_____________________________________________________________________________________________________________________________\n"
+                f"# ✨Yönlendirme\n"
+                f"## **Sebep:** {sebep}\n"
+                f"## **Lütfen [Yardım bekleme](https://discord.com/channels/1529545898294509589/1532829788824404274) ses kanalına geçiniz. Yetkili hazır olduğunda destek odasına alınacaksınız.**"
+            ),
             color=discord.Color.from_rgb(43, 45, 49)
         )
-        embed.set_author(name="✉️ Destek Çağrı Bildirimi")
         
         if interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
             
-        cagri_bilgisi = (
-            f"**Çağrı ID:** {destek_id}\n"
-            f"**Kullanıcı:** {kisi.mention} | {kisi_rol_adi}\n"
-            f"**Çağıran Yetkili:** {interaction.user.mention} | {yetkili_rol_adi}\n"
-            f"**Süre:** {tahmini_sure}"
-        )
-        embed.add_field(name="📌 Çağrı Bilgisi", value=cagri_bilgisi, inline=False)
-        
-        yonlendirme = (
-            f"**Sebep:** {sebep}\n\n"
-            f"Lütfen [Yardım bekleme](https://discord.com/channels/1529545898294509589/1532829788824404274) ses kanalına geçiniz. Yetkili hazır olduğunda destek odasına alınacaksınız."
-        )
-        embed.add_field(name="✨ Yönlendirme", value=yonlendirme, inline=False)
-        
         target_channel = interaction.client.get_channel(1552041858530672670)
         if target_channel:
             await target_channel.send(content=f"{kisi.mention}", embed=embed)
