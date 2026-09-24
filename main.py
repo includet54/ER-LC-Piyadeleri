@@ -30,7 +30,7 @@ class MyBot(commands.Bot):
         from cogs.rol_secim import RolSecimView  # <-- BUNU EKLE
         from cogs.izin_yonetimi import AnaIzinPaneli
         from cogs.yonetim_paneli import YonetimButonView
-        from cogs.cete_sistemi import GangPanelView
+        from cogs.cete_sistemi import GangPanelView, AdminGangPanelView
 
         self.add_view(KayitButonView())
         self.add_view(OnayView())
@@ -45,6 +45,7 @@ class MyBot(commands.Bot):
         self.add_view(AnaIzinPaneli())
         self.add_view(YonetimButonView())
         self.add_view(GangPanelView())
+        self.add_view(AdminGangPanelView())
 
         guild = discord.Object(id=GUILD_ID)
         self.tree.copy_global_to(guild=guild)
