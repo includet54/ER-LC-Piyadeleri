@@ -123,6 +123,9 @@ class Tickets(commands.Cog):
 
     @app_commands.command(name="ticket-panel", description="Ticket panelini gönderir")
     async def ticket_panel(self, interaction: discord.Interaction):
+        if not discord.utils.get(interaction.user.roles, id=1529546007635824680):
+            return await interaction.response.send_message("❌ Bu komutu sadece **Kurucu** kullanabilir!", ephemeral=True)
+
         if not interaction.user.guild_permissions.manage_channels:
             return await interaction.response.send_message("Yetkin yok.", ephemeral=True)
             

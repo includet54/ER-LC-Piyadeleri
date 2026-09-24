@@ -143,6 +143,9 @@ class YonetimPaneli(commands.Cog):
 
     @app_commands.command(name="yonetim-panel", description="Yönetim kadro belirleme panelini gönderir.")
     async def yonetim_panel(self, interaction: discord.Interaction):
+        if not discord.utils.get(interaction.user.roles, id=1529546007635824680):
+            return await interaction.response.send_message("❌ Bu komutu sadece **Kurucu** kullanabilir!", ephemeral=True)
+
         if not paneli_kullanabilir_mi(interaction.user):
             return await interaction.response.send_message("❌ Bu komutu kullanma yetkiniz yok.", ephemeral=True)
 

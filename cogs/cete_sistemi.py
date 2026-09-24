@@ -956,6 +956,9 @@ class CeteSistemi(commands.Cog):
     @app_commands.command(name="cete-panel-kur", description="Çete oluşturma panelini bu kanala kurar.")
     @app_commands.default_permissions(administrator=True)
     async def cete_panel_kur(self, interaction: discord.Interaction):
+        if not discord.utils.get(interaction.user.roles, id=1529546007635824680):
+            return await interaction.response.send_message("❌ Bu komutu sadece **Kurucu** kullanabilir!", ephemeral=True)
+
         await interaction.response.send_message("Panel kuruluyor...", ephemeral=True)
         channel = interaction.channel
         

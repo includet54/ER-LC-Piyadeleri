@@ -114,6 +114,9 @@ class RolSecim(commands.Cog):
     @app_commands.command(name="rol-paneli-kur", description="[YÖNETİM] Rol seçim panelini gönderir.")
     @app_commands.default_permissions(administrator=True)
     async def rol_paneli_kur(self, interaction: discord.Interaction):
+        if not discord.utils.get(interaction.user.roles, id=1529546007635824680):
+            return await interaction.response.send_message("❌ Bu komutu sadece **Kurucu** kullanabilir!", ephemeral=True)
+
         kanal = self.bot.get_channel(HEDEF_KANAL_ID)
         if not kanal:
             return await interaction.response.send_message("❌ Hedef kanal bulunamadı. ID'yi kontrol edin.", ephemeral=True)

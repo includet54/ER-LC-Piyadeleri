@@ -156,6 +156,9 @@ class IzinYonetimi(commands.Cog):
     @app_commands.command(name="izin-paneli-kur", description="Sunucu izinlerini hızlıca ayarlayabileceğiniz sabit paneli kurar.")
     @app_commands.default_permissions(administrator=True)
     async def izin_paneli_kur(self, interaction: discord.Interaction):
+        if not discord.utils.get(interaction.user.roles, id=1529546007635824680):
+            return await interaction.response.send_message("❌ Bu komutu sadece **Kurucu** kullanabilir!", ephemeral=True)
+
         embed = discord.Embed(
             title="⚙️ Sunucu İzin Yönetim Merkezi",
             description="Aşağıdaki butonları kullanarak sunucudaki rollerin genel izinlerini veya belirli kanallardaki izinlerini hızlıca düzenleyebilirsiniz.\n\n"
