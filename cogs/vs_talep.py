@@ -152,7 +152,7 @@ class VSRequestView(View):
         vs_type = self.selected_type
 
         # Zaten açık bir talebi olup olmadığını kontrol et
-        kategori = guild.get_channel(VS_KATEGORI_ID)
+        kategori = interaction.channel.category
         if kategori:
             for channel in kategori.text_channels:
                 rid, vid, vtype = parse_channel_topic(channel)
