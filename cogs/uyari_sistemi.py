@@ -241,11 +241,11 @@ class KanitGorselView(discord.ui.View):
                         if embed.footer and embed.footer.text and self.uyari_id in embed.footer.text:
                             new_embed = embed.copy()
                             new_embed.set_image(url=gorsel_url)
-                            # Kanıt alanını güncelle
-                            for idx, field in enumerate(new_embed.fields):
-                                if "Kanıt" in field.name:
-                                    new_embed.set_field_at(idx, name="📎 Kanıt", value=f"Görsel Kanıtı: [Resim]({gorsel_url})", inline=False)
-                                    break
+                            if new_embed.description and "Görsel Kanıtı: *Eklenmedi*" in new_embed.description:
+                                new_embed.description = new_embed.description.replace(
+                                    "Görsel Kanıtı: *Eklenmedi*", 
+                                    f"Görsel Kanıtı: [Resim]({gorsel_url})"
+                                )
                             await log_msg.edit(embed=new_embed)
                             break
             
@@ -585,17 +585,7 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
             dosya = discord.File(logo_path, filename="uyari_logo.png")
             embed.set_thumbnail(url="attachment://uyari_logo.png")
         
-        # 👤 Taraflar
-        embed.add_field(
-            name="👤 Taraflar",
-            value=(
-                f"**Ceza Yiyen Kişi:** {hedef.mention}\n"
-                f"**Yetkili:** {yetkili.mention} | {yetkili_rutbe}"
-            ),
-            inline=False
-        )
-        
-        # 📌 Kayıt Özet
+        # Değişkenleri hazırla
         bitis = bitis_tarihi_str or "—"
         if bilgi.get("ozel") in ("ban", "yasakli"):
             bitis = "Kalıcı"
@@ -603,48 +593,40 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
         kademe_str = f"{kademe}" if kademe > 0 else "—"
         if yetkili_uyari:
             kademe_str = f"Yetkili Uyarı {kademe}" if kademe > 0 else "—"
-        
-        embed.add_field(
-            name="📌 Kayıt Özet",
-            value=(
-                f"**Uyarı ID:** #{uyari_id}\n"
-                f"**Yetkili:** {yetkili.mention} | {yetkili_rutbe}\n"
-                f"**Ceza Yiyen Kişi:** {hedef.mention}\n"
-                f"**Uyarı Bitiş Tarihi:** {bitis}\n"
-                f"**Toplam Uyarı:** {toplam_uyari if toplam_uyari > 0 else kademe_str}"
-            ),
-            inline=False
-        )
-        
-        # 🚨 Verilen Uyarı Puanı
-        if not yetkili_uyari and eklenen_puan > 0:
-            embed.add_field(
-                name="🚨 Verilen Uyarı Puanı",
-                value=f"**+{eklenen_puan} puan** (Toplam: **{toplam_puan}**)",
-                inline=False
-            )
-        
-        # 📝 Uyarı Sebebi
-        embed.add_field(
-            name="📝 Uyarı Sebebi",
-            value=f"**{madde_kodu}** — {bilgi['aciklama']}",
-            inline=False
-        )
-        
-        # 🏷️ Rolleri
+            
         kullanici_rolleri = ", ".join([r.mention for r in hedef.roles if r.id != guild.id][:15]) or "Rol yok"
-        embed.add_field(
-            name="🏷️ Rolleri",
-            value=kullanici_rolleri,
-            inline=False
-        )
         
-        # 📎 Kanıt (başlangıçta boş)
-        embed.add_field(
-            name="📎 Kanıt",
-            value="Görsel Kanıtı: *Eklenmedi*",
-            inline=False
+        puan_metni = ""
+        if not yetkili_uyari and eklenen_puan > 0:
+            puan_metni = (
+                f"### 🚨 Verilen Uyarı Puanı:\n"
+                f"**+{eklenen_puan} Puan (Toplam: {toplam_puan})**\n\n"
+            )
+            
+        # Description olarak derle
+        desc = (
+            f"## 👤 Taraflar\n"
+            f"**Ceza Yiyen Kişi:** {hedef.mention}\n"
+            f"**Yetkili:** {yetkili.mention} | {yetkili_rutbe}\n\n"
+            f"***\n\n"
+            f"## 📌 Kayıt Özet\n"
+            f"**Uyarı ID:** #{uyari_id}\n"
+            f"**Yetkili:** {yetkili.mention} | {yetkili_rutbe}\n"
+            f"**Ceza Yiyen Kişi:** {hedef.mention}\n"
+            f"**Uyarı Bitiş Tarihi:** {bitis}\n"
+            f"**Toplam Uyarı:** {toplam_uyari if toplam_uyari > 0 else kademe_str}\n\n"
+            f"***\n\n"
+            f"{puan_metni}"
+            f"### 📝 Uyarı Sebebi:\n"
+            f"**{madde_kodu} — {bilgi['aciklama']}**\n\n"
+            f"***\n\n"
+            f"### 🏷️ Rolleri:\n"
+            f"**{kullanici_rolleri}**\n\n"
+            f"***\n\n"
+            f"📎 **Kanıt**\n"
+            f"Görsel Kanıtı: *Eklenmedi*"
         )
+        embed.description = desc
         
         # Sonuç
         if sonuc:
