@@ -71,6 +71,7 @@ MADDELER = {
     "M10": {"puan": 0,  "aciklama": "+18, cinsel taciz, ırkçılık, cinsiyet/yaş ayrımcılığı içeren içerik paylaşmak.", "ozel": "timeout_1gun"},
     "M11": {"puan": 0,  "aciklama": "Irkçılık ve her türlü ayrımcılık yapmak.", "ozel": "timeout_1gun"},
     "M12": {"puan": 2,  "aciklama": "Sunucuda bulunan kişilerin psikolojisini etkileyecek argo, küçümseme ve dalga geçme gibi faaliyetler yapmak.", "ozel": None},
+    "M13": {"puan": 0,  "aciklama": "Sunucuda yapılan etkinliklerde ve kapışmalarda 3. Taraf yazılım kullanmak.", "ozel": "timeout_1gun"},
     # Kategori 2: Sunucu Düzeni
     "D1":  {"puan": 3,  "aciklama": "Önemli kanallara (duyuru vb.) anlamsız, boş mesajlar atmak.", "ozel": None},
     "D2":  {"puan": 3,  "aciklama": "Ses kanallarında ses panelini veya sohbet kanallarında sohbeti gereksiz yere çağırmak (spawnlamak).", "ozel": None},
