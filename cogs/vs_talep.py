@@ -324,37 +324,6 @@ class VSSetupView(View):
         )
 
 
-async def setup_vs_talep(bot: commands.Bot):
-    """Bot başladığında sabit mesajı atar (yoksa)."""
-    channel = bot.get_channel(VS_TALEP_KANAL_ID)
-    if not channel:
-        return
-
-    # Daha önce atılmış mı kontrol et
-    async for msg in channel.history(limit=20):
-        if msg.author == bot.user and msg.components:
-            return  # Zaten var
-
-    embed = discord.Embed(
-        description=(
-            "# PRP | VS Talep\n\n"
-            "> Hoş geldiniz. Size en iyi ve en hızlı kapışmayı sunabilmemiz için aşağıdaki kurallara dikkat edin.\n\n"
-            "---\n\n"
-            "**Kurallar**\n"
-            "> • Gereksiz, trolleme amaçlı veya konu dışı talep açmak yasaktır.\n"
-            "> • Talep açıldıktan sonra 2 gün süresi vardır. Süre dolunca sorgusuz kapanır.\n"
-            "> • Managerlara ya da <@&1553427352044707840>'ne kanıt göstermek zorundasınız.\n\n"
-            "---\n\n"
-            "Aşağıdaki butona tıklayarak kişiyi ve uygun kısmı seçerek talep oluşturabilirsiniz."
-        ),
-        color=0x9B59B6
-    )
-    embed.set_image(url=VS_LOGO_URL)
-
-    view = VSSetupView()
-    await channel.send(embed=embed, view=view)
-
-
 class VSTalepCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -362,6 +331,34 @@ class VSTalepCog(commands.Cog):
 
     def cog_unload(self):
         self.vs_deadline_check.cancel()
+
+
+    @app_commands.command(name="vs_talep_panel_kur", description="VS Talep panelini kurar")
+    async def vs_talep_panel_kur(self, interaction: discord.Interaction):
+        # Yetki kontrolü (sadece Kurucu - 1529546007635824680)
+        if not interaction.user.guild_permissions.administrator and not any(rol.id == 1529546007635824680 for rol in interaction.user.roles):
+            await interaction.response.send_message("Bu komutu kullanma yetkin yok.", ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            description=(
+                "# PRP | VS Talep\n\n"
+                "> Hoş geldiniz. Size en iyi ve en hızlı kapışmayı sunabilmemiz için aşağıdaki kurallara dikkat edin.\n\n"
+                "---\n\n"
+                "**Kurallar**\n"
+                "> • Gereksiz, trolleme amaçlı veya konu dışı talep açmak yasaktır.\n"
+                "> • Talep açıldıktan sonra 2 gün süresi vardır. Süre dolunca sorgusuz kapanır.\n"
+                "> • Managerlara ya da <@&1553427352044707840>'ne kanıt göstermek zorundasınız.\n\n"
+                "---\n\n"
+                "Aşağıdaki butona tıklayarak kişiyi ve uygun kısmı seçerek talep oluşturabilirsiniz."
+            ),
+            color=0x9B59B6
+        )
+        embed.set_image(url=VS_LOGO_URL)
+
+        view = VSSetupView()
+        await interaction.channel.send(embed=embed, view=view)
+        await interaction.response.send_message("VS Talep paneli başarıyla kuruldu.", ephemeral=True)
 
     @tasks.loop(minutes=30)
     async def vs_deadline_check(self):
@@ -422,8 +419,3 @@ class VSTalepCog(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(VSTalepCog(bot))
-    # Kalıcı görünümler artık main.py içinde tek seferden ekleniyor.
-    # Bot hazır olunca sabit mesajı kontrol et
-    @bot.listen()
-    async def on_ready():
-        await setup_vs_talep(bot)
