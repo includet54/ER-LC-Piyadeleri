@@ -15,6 +15,10 @@ MESAJ_DENETIMCISI_ID = 1542249243702726796
 SES_KANALI_YETKILISI_ID = 1547526649459777556
 TAKMA_AD_YETKILISI_ID = 1543075759508164659
 
+TICKET_YETKILISI_ID = 1553333289798869032
+KAPISMA_TALEP_YETKILISI_ID = 1553427352044707840
+DESTEK_BEKLEME_YETKILISI_ID = 1553473785527537765
+
 def paneli_kullanabilir_mi(member: discord.Member) -> bool:
     if member.guild_permissions.administrator:
         return True
@@ -42,6 +46,9 @@ class YonetimUserSelect(discord.ui.UserSelect):
         mesaj_rol = guild.get_role(MESAJ_DENETIMCISI_ID)
         ses_rol = guild.get_role(SES_KANALI_YETKILISI_ID)
         takma_ad_rol = guild.get_role(TAKMA_AD_YETKILISI_ID)
+        ticket_yetk_rol = guild.get_role(TICKET_YETKILISI_ID)
+        kapisma_yetk_rol = guild.get_role(KAPISMA_TALEP_YETKILISI_ID)
+        destek_bekleme_rol = guild.get_role(DESTEK_BEKLEME_YETKILISI_ID)
 
         uye_rol_idleri = [r.id for r in hedef_uye.roles]
         
@@ -53,14 +60,17 @@ class YonetimUserSelect(discord.ui.UserSelect):
             if self.islem_turu == "trial":
                 if trial_rol: await hedef_uye.add_roles(trial_rol)
                 if wl_rol: await hedef_uye.add_roles(wl_rol)
-                mesaj = f"✅ {hedef_uye.mention} başarıyla **Trial Staff** ve **Whitelist Yetkilisi** yapıldı."
+                if ticket_yetk_rol: await hedef_uye.add_roles(ticket_yetk_rol)
+                if kapisma_yetk_rol: await hedef_uye.add_roles(kapisma_yetk_rol)
+                mesaj = f"✅  {hedef_uye.mention} başarıyla **Trial Staff**, **Whitelist Yetkilisi**, **Ticket Yetkilisi** ve **Kapışma Talep Yetkilisi** yapıldı."
 
             elif self.islem_turu == "staff":
                 if TRIAL_STAFF_ID not in uye_rol_idleri:
                     return await interaction.followup.send("❌ Bu kişiye **Staff** verebilmek için üzerinde **Trial Staff** rolü olması ZORUNLUDUR!", ephemeral=True)
                 if staff_rol: await hedef_uye.add_roles(staff_rol)
                 if trial_rol: await hedef_uye.remove_roles(trial_rol)
-                mesaj = f"✅ {hedef_uye.mention} başarıyla **Staff** yapıldı (Trial Staff alındı)."
+                if destek_bekleme_rol: await hedef_uye.add_roles(destek_bekleme_rol)
+                mesaj = f"✅  {hedef_uye.mention} başarıyla **Staff** ve **Destek Bekleme Yetkilisi** yapıldı (Trial Staff alındı)."
 
             elif self.islem_turu == "senior":
                 if STAFF_ID not in uye_rol_idleri:
@@ -151,8 +161,8 @@ class YonetimPaneli(commands.Cog):
 
         desc = (
             "Lütfen terfi ettirmek istediğiniz rütbenin butonuna basın, ardından açılacak menüden kullanıcıyı seçin.\n\n"
-            "🔸 **Trial Staff:** Seçilen kişiye Trial Staff ve Registration Manager (Whitelist Yetkilisi) verir.\n"
-            "🔸 **Staff:** Seçilen kişinin Staff olmasını sağlar. *(Trial Staff zorunludur)*.\n"
+            "🔸 **Trial Staff:** Seçilen kişiye Trial Staff, Registration Manager (Whitelist Yetkilisi), Ticket Yetkilisi ve Kapışma Talep Yetkilisi verir.\n"
+            "🔸 **Staff:** Seçilen kişinin Staff ve Destek Bekleme Yetkilisi olmasını sağlar. *(Trial Staff zorunludur)*.\n"
             "🔸 **Senior Staff:** Seçilen kişinin Senior Staff olmasını sağlar. *(Staff zorunludur)*.\n"
             "🔸 **Mesaj Denetimcisi:** Seçilen kişiye Mesaj Denetimcisi rolü verilir. *(Staff rollerinden biri zorunludur)*.\n"
             "🔸 **Ses Kanalı Yetkilisi:** Seçilen kişiye Ses Kanalı Yetkilisi rolü verilir. *(Staff rollerinden biri zorunludur)*.\n"

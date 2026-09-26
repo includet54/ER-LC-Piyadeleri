@@ -283,7 +283,7 @@ class YardimBekleme(commands.Cog):
                 )
                 embed.timestamp = discord.utils.utcnow()
                 
-                ping_msg = f"<@&{YONETIM_EKIBI_ROL}>"
+                ping_msg = f"<@&{YONETIM_EKIBI_ROL}> <@&1553473785527537765>"
                 await kanal.send(content=ping_msg, embed=embed, view=DevralView(member.id))
 
         elif before.channel and before.channel.id == YARDIM_BEKLEME_VC_ID:
