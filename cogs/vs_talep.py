@@ -1,7 +1,9 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 from discord.ui import View, Button, Select, UserSelect
+import datetime
+import asyncio
 
 # ==================== AYARLAR ====================
 VS_TALEP_KANAL_ID = 1537136926287593503          # [vs talep] kanalı
@@ -26,23 +28,33 @@ KADEME_6 = 1541216610751221851
 KADEME_7 = 1541216852905041980
 
 TIER_ORDER = [TEMEL_KADEME, KADEME_1, KADEME_2, KADEME_3, KADEME_4, KADEME_5, KADEME_6, KADEME_7]
+
+VS_LOGO_URL = "https://files.catbox.moe/m3e09z.png"
+VS_SURE_SAAT = 48  # 2 gün = 48 saat
+VS_UYARI_SAAT = 5  # kapanmadan 5 saat önce uyarı
 # =================================================
 
 
-def build_channel_topic(requester_id: int, victim_id: int, vs_type: str) -> str:
+def build_channel_topic(requester_id: int, victim_id: int, vs_type: str, timestamp: float = None) -> str:
     """Kanal 'topic' alanına talep bilgisini gömer, bot yeniden başlasa bile tuşlar doğru çalışsın diye."""
-    return f"vs|{requester_id}|{victim_id}|{vs_type}"
+    if timestamp is None:
+        timestamp = datetime.datetime.now(datetime.timezone.utc).timestamp()
+    return f"vs|{requester_id}|{victim_id}|{vs_type}|{timestamp}"
 
 
 def parse_channel_topic(channel: discord.TextChannel):
     topic = channel.topic or ""
     try:
-        prefix, rid, vid, vtype = topic.split("|")
-        if prefix != "vs":
-            return None, None, None
-        return int(rid), int(vid), vtype
+        parts = topic.split("|")
+        if parts[0] != "vs":
+            return None, None, None, None
+        rid = int(parts[1])
+        vid = int(parts[2])
+        vtype = parts[3]
+        ts = float(parts[4]) if len(parts) > 4 else None
+        return rid, vid, vtype, ts
     except Exception:
-        return None, None, None
+        return None, None, None, None
 
 
 async def promote_winner(guild: discord.Guild, winner: discord.Member):
@@ -70,10 +82,6 @@ async def promote_winner(guild: discord.Guild, winner: discord.Member):
 async def swap_manager_role(guild: discord.Guild, winner: discord.Member, loser: discord.Member, vs_type: str):
     """
     Kaybeden üyede ilgili Manager rolü varsa, o rol kaybedenden alınıp kazanana verilir.
-    Not: İstekte sadece PVP MANAGER için belirtilmişti, ama DRIVE için de aynı mantığın
-    geçerli olması muhtemel görünüyor, o yüzden ikisi için de simetrik uyguladım.
-    Sadece PVP için çalışmasını istersen 'manager_role_id' satırını PVP_MANAGER_ROLE
-    olarak sabitlemen yeterli.
     """
     if winner is None or loser is None:
         return
@@ -153,7 +161,7 @@ class VSRequestView(View):
         kategori = interaction.channel.category
         if kategori:
             for channel in kategori.text_channels:
-                rid, vid, vtype = parse_channel_topic(channel)
+                rid, vid, vtype, ts = parse_channel_topic(channel)
                 if rid == requester.id:
                     await interaction.followup.send("❌ Zaten açık bir VS talebiniz bulunuyor. Mevcut kanalınız kapanmadan yenisini açamazsınız!", ephemeral=True)
                     return
@@ -168,7 +176,7 @@ class VSRequestView(View):
             victim: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
         }
 
-        # Yönetim rolleri
+        # Kapışma Talep Yetkilisi rolü
         for role_id in YONETIM_ROLLER:
             role = guild.get_role(role_id)
             if role:
@@ -180,13 +188,18 @@ class VSRequestView(View):
         if manager_role:
             overwrites[manager_role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
 
-        # Kanal oluştur — talep bilgisi 'topic' içine gömülür (bot restart olsa bile tuşlar çalışsın diye)
+        # Zaman damgası
+        now = datetime.datetime.now(datetime.timezone.utc)
+        deadline = now + datetime.timedelta(hours=VS_SURE_SAAT)
+        discord_ts = int(deadline.timestamp())
+
+        # Kanal oluştur
         category = interaction.channel.category
         new_channel = await guild.create_text_channel(
             name=channel_name,
             overwrites=overwrites,
             category=category,
-            topic=build_channel_topic(requester.id, victim.id, vs_type),
+            topic=build_channel_topic(requester.id, victim.id, vs_type, now.timestamp()),
             reason=f"VS Talebi: {requester} vs {victim} ({vs_type})"
         )
 
@@ -197,7 +210,8 @@ class VSRequestView(View):
                 f"**Açan:** {requester.mention}\n"
                 f"**Mağdur:** {victim.mention}\n"
                 f"**Tür:** `{vs_type}`\n\n"
-                f"Yönetim ekibi aşağıdan sonucu belirlesin."
+                f"⏰ **Son Tarih:** <t:{discord_ts}:F> (<t:{discord_ts}:R>)\n\n"
+                f"Kapışma Talep Yetkilisi aşağıdan sonucu belirlesin."
             ),
             color=0xE74C3C
         )
@@ -224,10 +238,7 @@ class VSRequestView(View):
 class VSChannelView(View):
     """
     Bu View artık talep bilgisini kendi içinde tutmuyor (requester_id/victim_id gibi) —
-    her tuşa basıldığında bilgiyi kanalın 'topic' alanından okuyor. Bu sayede:
-      1) main.py içinde tek, argümansız bir 'VSChannelView()' ile kalıcı (persistent)
-         olarak eklenebiliyor (önceki hata buradan kaynaklanıyordu).
-      2) Bot yeniden başlasa bile tuşlar doğru kişilere doğru işlemi uyguluyor.
+    her tuşa basıldığında bilgiyi kanalın 'topic' alanından okuyor.
     """
     def __init__(self, requester_label: str = "Talebi Açan Kazandı", victim_label: str = "Mağdur Kazandı"):
         super().__init__(timeout=None)
@@ -238,16 +249,16 @@ class VSChannelView(View):
                 child.label = victim_label
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        # Sadece yönetim basabilir
+        # Sadece Kapışma Talep Yetkilisi basabilir
         user_roles = [r.id for r in interaction.user.roles]
         if not any(r in user_roles for r in YONETIM_ROLLER):
-            await interaction.response.send_message("❌ Bu butonlara sadece Yönetim ekibi basabilir!", ephemeral=True)
+            await interaction.response.send_message("❌ Bu butonlara sadece Kapışma Talep Yetkilisi basabilir!", ephemeral=True)
             return False
         return True
 
     @discord.ui.button(label="Talebi Açan Kazandı", style=discord.ButtonStyle.success, custom_id="vs_requester_win")
     async def requester_win(self, interaction: discord.Interaction, button: Button):
-        requester_id, victim_id, vs_type = parse_channel_topic(interaction.channel)
+        requester_id, victim_id, vs_type, ts = parse_channel_topic(interaction.channel)
         if requester_id is None:
             await interaction.response.send_message("❌ Bu kanalın VS bilgisi okunamadı.", ephemeral=True)
             return
@@ -255,7 +266,7 @@ class VSChannelView(View):
 
     @discord.ui.button(label="Mağdur Kazandı", style=discord.ButtonStyle.primary, custom_id="vs_victim_win")
     async def victim_win(self, interaction: discord.Interaction, button: Button):
-        requester_id, victim_id, vs_type = parse_channel_topic(interaction.channel)
+        requester_id, victim_id, vs_type, ts = parse_channel_topic(interaction.channel)
         if requester_id is None:
             await interaction.response.send_message("❌ Bu kanalın VS bilgisi okunamadı.", ephemeral=True)
             return
@@ -325,19 +336,92 @@ async def setup_vs_talep(bot: commands.Bot):
             return  # Zaten var
 
     embed = discord.Embed(
-        title="⚔️ VS TALEP",
         description=(
-            "Aşağıdaki butona basarak yeni bir VS talebi açabilirsin.\n\n"
-            "Kiminle ve hangi türde (PVP / DRIVE) kapışmak istediğini seçmen gerekiyor."
+            "# PRP | VS Talep\n\n"
+            "> Hoş geldiniz. Size en iyi ve en hızlı kapışmayı sunabilmemiz için aşağıdaki kurallara dikkat edin.\n\n"
+            "---\n\n"
+            "**Kurallar**\n"
+            "> • Gereksiz, trolleme amaçlı veya konu dışı talep açmak yasaktır.\n"
+            "> • Talep açıldıktan sonra 2 gün süresi vardır. Süre dolunca sorgusuz kapanır.\n"
+            "> • Managerlara ya da <@&1553427352044707840>'ne kanıt göstermek zorundasınız.\n\n"
+            "---\n\n"
+            "Aşağıdaki butona tıklayarak kişiyi ve uygun kısmı seçerek talep oluşturabilirsiniz."
         ),
         color=0x9B59B6
     )
+    embed.set_image(url=VS_LOGO_URL)
 
     view = VSSetupView()
     await channel.send(embed=embed, view=view)
 
 
+class VSTalepCog(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.vs_deadline_check.start()
+
+    def cog_unload(self):
+        self.vs_deadline_check.cancel()
+
+    @tasks.loop(minutes=30)
+    async def vs_deadline_check(self):
+        """Her 30 dakikada bir VS kanallarını kontrol et, süresi dolanlara uyarı/silme uygula."""
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        for guild in self.bot.guilds:
+            vs_kanal = guild.get_channel(VS_TALEP_KANAL_ID)
+            if not vs_kanal or not vs_kanal.category:
+                continue
+
+            for channel in vs_kanal.category.text_channels:
+                if channel.id == VS_TALEP_KANAL_ID:
+                    continue
+
+                rid, vid, vtype, ts = parse_channel_topic(channel)
+                if rid is None or ts is None:
+                    continue
+
+                creation_time = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+                elapsed = (now - creation_time).total_seconds() / 3600  # saat cinsinden
+
+                # 2 gün (48 saat) dolmuşsa kanalı sil
+                if elapsed >= VS_SURE_SAAT:
+                    try:
+                        await channel.send("⏰ **Süre doldu!** Bu VS talebi 2 gün içinde sonuçlandırılmadığı için otomatik olarak iptal ediliyor.")
+                        await asyncio.sleep(5)
+                        await channel.delete(reason="VS Talebi süre aşımı (2 gün)")
+                    except Exception:
+                        pass
+                    continue
+
+                # Kapanmaya 5 saat kala uyarı gönder (43. saat ile 43.5 arasında)
+                uyari_baslangic = VS_SURE_SAAT - VS_UYARI_SAAT
+                if uyari_baslangic <= elapsed < uyari_baslangic + 0.5:
+                    # Daha önce uyarı gönderilmiş mi kontrol et
+                    uyari_atildi = False
+                    async for msg in channel.history(limit=10):
+                        if msg.author == self.bot.user and "⚠️ **Dikkat!**" in (msg.content or ""):
+                            uyari_atildi = True
+                            break
+
+                    if not uyari_atildi:
+                        deadline_ts = int(creation_time.timestamp() + VS_SURE_SAAT * 3600)
+                        try:
+                            await channel.send(
+                                f"⚠️ **Dikkat!** Bu VS talebinin kapanmasına **5 saat** kaldı!\n"
+                                f"⏰ Son tarih: <t:{deadline_ts}:F> (<t:{deadline_ts}:R>)\n\n"
+                                f"Lütfen sonucu belirleyin, aksi takdirde talep otomatik iptal edilecektir."
+                            )
+                        except Exception:
+                            pass
+
+    @vs_deadline_check.before_loop
+    async def before_deadline_check(self):
+        await self.bot.wait_until_ready()
+
+
 async def setup(bot: commands.Bot):
+    await bot.add_cog(VSTalepCog(bot))
     # Kalıcı görünümler artık main.py içinde tek seferden ekleniyor.
     # Bot hazır olunca sabit mesajı kontrol et
     @bot.listen()
