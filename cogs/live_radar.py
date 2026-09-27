@@ -24,12 +24,12 @@ class LiveRadar(commands.Cog):
             
         api_key = os.getenv("ERLC_API_KEY")
         if not api_key:
-            print("[RADAR HATA] ERLC_API_KEY bulunamadı! Railway Variables kısmını kontrol et.")
+            print("[RADAR HATA] ERLC_API_KEY bulunamadı! Railway Variables kısmını kontrol et.", flush=True)
             return
 
         kanal = self.bot.get_channel(RADAR_KANAL_ID)
         if not kanal:
-            print(f"[RADAR HATA] Kanal bulunamadı! ID: {RADAR_KANAL_ID}. Botun kanalı görme yetkisi var mı?")
+            print(f"[RADAR HATA] Kanal bulunamadı! ID: {RADAR_KANAL_ID}. Botun kanalı görme yetkisi var mı?", flush=True)
             return
 
         try:
@@ -37,13 +37,13 @@ class LiveRadar(commands.Cog):
                 headers = {'Server-Key': api_key}
                 async with session.get('https://api.erlc.gg/v2/server', headers=headers, timeout=5) as resp:
                     if resp.status != 200:
-                        print(f"[RADAR HATA] API'ye bağlanılamadı. HTTP Kodu: {resp.status}")
+                        print(f"[RADAR HATA] API'ye bağlanılamadı. HTTP Kodu: {resp.status}", flush=True)
                         return
                     data = await resp.json()
                     players = data.get("Players", [])
-                    print(f"[RADAR BİLGİ] API'den {len(players)} oyuncu çekildi.")
+                    print(f"[RADAR BİLGİ] API'den {len(players)} oyuncu çekildi.", flush=True)
         except Exception as e:
-            print(f"[RADAR HATA] API isteği sırasında bir çökme yaşandı: {e}")
+            print(f"[RADAR HATA] API isteği sırasında bir çökme yaşandı: {e}", flush=True)
             return
 
         aktif_oyuncular = {}
@@ -82,15 +82,16 @@ class LiveRadar(commands.Cog):
                     # Mesaj elle silinmişse yenisini gönder
                     msg = await kanal.send(embed=embed)
                     self.takip_edilen_mesajlar[isim] = msg
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[RADAR HATA] Mesaj güncellenirken hata: {e}", flush=True)
             else:
                 try:
                     # Yeni bağlanan oyuncu için log mesajı oluştur
                     msg = await kanal.send(embed=embed)
                     self.takip_edilen_mesajlar[isim] = msg
-                except Exception:
-                    pass
+                    print(f"[RADAR BAŞARILI] {isim} için mesaj gönderildi.", flush=True)
+                except Exception as e:
+                    print(f"[RADAR HATA] Kanala mesaj atılamadı! Yetki hatası olabilir: {e}", flush=True)
 
         # 2. Sunucudan çıkan oyuncuları temizle ve mesajlarını inaktif (Kırmızı) yap
         cikanlar = [isim for isim in self.takip_edilen_mesajlar if isim not in aktif_oyuncular]
@@ -102,8 +103,9 @@ class LiveRadar(commands.Cog):
                 embed.title = f"🔴 Çevrimdışı: {isim}"
                 embed.description = "❌ Oyuncu sunucudan ayrıldı. İzleme sonlandırıldı."
                 await msg.edit(embed=embed)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[RADAR HATA] Çevrimdışı mesajı düzenlenemedi: {e}", flush=True)
 
 async def setup(bot):
+    print("[RADAR BİLGİ] live_radar modülü sisteme yükleniyor...", flush=True)
     await bot.add_cog(LiveRadar(bot))
