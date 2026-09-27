@@ -11,7 +11,7 @@ YARDIM_BEKLEME_VC_ID = 1532829788824404274
 YARDIM_VC_ID = 1532829837150916719
 ONEMLI_LOG_KANALI = 1532829734742786168
 ONLY_MOD_KANALI = 1532828404347437287
-YONETIM_EKIBI_ROL = 1537934087166369812
+DESTEK_BEKLEME_YETKILISI_ROL = 1553473785527537765
 
 DATA_FILE = "data/mod_stats.json"
 GUNLUK_HEDEF_SANIYE = 5 * 60 * 60  # 5 saat
@@ -262,7 +262,7 @@ class YardimBekleme(commands.Cog):
 
         if before.channel is None and after.channel is not None:
             # Yalnızca yetkililerin ses süresini takip et
-            if any(r.id == YONETIM_EKIBI_ROL for r in member.roles):
+            if any(r.id == DESTEK_BEKLEME_YETKILISI_ROL for r in member.roles):
                 self.active_voice_sessions[member.id] = discord.utils.utcnow()
         elif before.channel is not None and after.channel is None:
             if member.id in self.active_voice_sessions:
@@ -285,7 +285,7 @@ class YardimBekleme(commands.Cog):
                 )
                 embed.timestamp = discord.utils.utcnow()
                 
-                ping_msg = f"<@&{YONETIM_EKIBI_ROL}> <@&1553473785527537765>"
+                ping_msg = f"<@&{DESTEK_BEKLEME_YETKILISI_ROL}>"
                 await kanal.send(content=ping_msg, embed=embed, view=DevralView(member.id))
 
         elif before.channel and before.channel.id == YARDIM_BEKLEME_VC_ID:
