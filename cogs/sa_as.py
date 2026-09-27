@@ -1,18 +1,36 @@
 import discord
 from discord.ext import commands
 import random
+import re
 
-# Toplam 20 tetikleyici (Senin listen + sık kullanılan alternatifler)
-TETIKLEYICILER = [
-    "sa", "sea", "selamın aleykum", "selamunaleykum", "selam",
-    "selamınaleykum", "selamun aleykum", "esselamualeykum",
-    "esselamualeyküm", "esselamu aleyküm", "esselamu aleykum",
-    "slm", "s.a", "s.a.", "selamlar", "selamın aleyküm",
-    "selamun aleyküm", "hayırlı günler", "selam millet", "merhabalar"
+# ==========================================
+# Sa-As Sistemi — Regex tabanlı, noktalama
+# ve boşluğa dayanıklı selam algılayıcı
+# ==========================================
+
+# Her tetikleyici için \b (sözcük sınırı) ve başına/sonuna anlamsız
+# noktalama gelebileceği varsayılır. Arama mesajın herhangi bir yerinde
+# yapılmaz; metnin TAMAMININ bu kalıplardan biriyle başlayıp bitmesi
+# ya da tek başına bu kelimeden oluşması aranır.
+#
+# Strateji: Mesajın başında veya tamamen bu kelimeden oluşuyorsa yanıt ver.
+# Böylece "saat 12'de sa görüşürüz" gibi cümlelerde yanlış tetiklenme olmaz.
+
+_TETIKLEYICI_KALIPLARI: list[re.Pattern] = [
+    # Kısa ve riskli olanlar → mesajın TAMAMI bu kelime olmalı
+    re.compile(r"^[\W_]*(sa|slm|s\.a\.?|sea|s\.a)[\W_]*$",                        re.IGNORECASE | re.UNICODE),
+    # Biraz daha uzun olanlar → mesajın başında olması yeterli
+    re.compile(r"^[\W_]*(selam|selamlar|selam\s+millet|merhabalar|hayırlı\s+günler)[\W_,!?\.]*",
+               re.IGNORECASE | re.UNICODE),
+    # Selamın Aleyküm varyasyonları — tüm yazım biçimleri
+    re.compile(
+        r"^[\W_]*(esse?l[aâ]mu?\s*'?aleyk[uü]m|selamın?\s*aleyk[uü]m|"
+        r"selamun?\s*aleyk[uü]m|selamına?ley[kq]ü?m)[\W_]*$",
+        re.IGNORECASE | re.UNICODE,
+    ),
 ]
 
-# Emojilerle zenginleştirilmiş rastgele yanıtlar
-YANITLAR = [
+YANITLAR: list[str] = [
     "Aleyküm selam, selamın aynısı sana da kardeş! ✌️😎",
     "Ve aleyküm selam, selamın en güzeli senden geldi. ✨",
     "Aleyküm selam, selamına kurban! 🤎",
@@ -27,26 +45,27 @@ YANITLAR = [
     "Ve aleyküm selam, selamın bana ulaştı, karşılığı fazlasıyla sana. 💯",
     "Aleyküm selam, selamın tadı damağımda kaldı. 🍬😋",
     "Ve aleyküm selam, selamının kıymetini bilirim. 🌟",
-    "Aleyküm selam, selam olsun sana da güzel insan. 💐"
+    "Aleyküm selam, selam olsun sana da güzel insan. 💐",
 ]
 
+
+def selam_mi(metin: str) -> bool:
+    """Mesaj bir selamlama kalıbıyla eşleşiyor mu?"""
+    return any(pat.search(metin) for pat in _TETIKLEYICI_KALIPLARI)
+
+
 class SaAs(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        # Botun kendi mesajlarına yanıt vermesini engelle
+    async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
 
-        # Mesajı küçük harfe çevir ve başındaki/sonundaki boşlukları sil
-        icerik = message.content.strip().lower()
+        if selam_mi(message.content):
+            await message.reply(random.choice(YANITLAR), mention_author=False)
 
-        # Eğer yazılan mesaj tam olarak tetikleyicilerden biriyse yanıtla
-        if icerik in TETIKLEYICILER:
-            secilen_yanit = random.choice(YANITLAR)
-            await message.reply(secilen_yanit, mention_author=False)
 
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(SaAs(bot))

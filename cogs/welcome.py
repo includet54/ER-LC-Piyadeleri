@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord.ext import tasks
 import os
 
 HOSGELDIN_KANAL_ID = 1532829955409449081
@@ -9,26 +10,39 @@ KATILIMCI_SAYISI_KANAL_ID = 1551308350615199935
 class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Kanalı en son hangi isimle güncellediğimizi takip ediyoruz
+        # böylece gereksiz API çağrısından kaçınıyoruz
+        self._son_gosterilen_sayi: int | None = None
+        self.katilimci_sayisi_guncelle.start()
 
-    async def guncelle_katilimci_sayisi(self, guild: discord.Guild):
-        kanal = guild.get_channel(KATILIMCI_SAYISI_KANAL_ID)
-        if kanal:
-            yeni_isim = f"══▐ {guild.member_count} KATILIMCI▐ ══"
-            if kanal.name != yeni_isim:
-                try:
-                    await kanal.edit(name=yeni_isim)
-                except Exception as e:
-                    print(f"Katılımcı sayısı güncellenirken hata: {e}")
+    def cog_unload(self):
+        self.katilimci_sayisi_guncelle.cancel()
 
-    @commands.Cog.listener()
-    async def on_ready(self):
-        # Bot başladığında sayıyı kontrol edip günceller
+    # ── Discord rate limit: kanal adı maksimum 2 kez / 10 dakika değişebilir.
+    # 15 dakikada bir güncellemek bu sınırın tamamen dışında kalır. ──
+    @tasks.loop(minutes=15)
+    async def katilimci_sayisi_guncelle(self):
         for guild in self.bot.guilds:
-            await self.guncelle_katilimci_sayisi(guild)
+            kanal = guild.get_channel(KATILIMCI_SAYISI_KANAL_ID)
+            if not kanal:
+                continue
+            yeni_sayi = guild.member_count
+            if yeni_sayi == self._son_gosterilen_sayi:
+                continue  # Sayı değişmemişse API çağrısı yapma
+            yeni_isim = f"══▐ {yeni_sayi} KATILIMCI▐ ══"
+            try:
+                await kanal.edit(name=yeni_isim)
+                self._son_gosterilen_sayi = yeni_sayi
+            except discord.HTTPException as e:
+                print(f"[welcome] Katılımcı sayısı güncellenemedi: {e}")
+
+    @katilimci_sayisi_guncelle.before_loop
+    async def before_guncelle(self):
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        await self.guncelle_katilimci_sayisi(member.guild)
+        # Katılımcı sayısı artık task loop tarafından güncelleniyor.
         
         # Kayıtsız rolünü ver
         kayitsiz_rol = member.guild.get_role(1542271426386591894)
@@ -77,7 +91,6 @@ class Welcome(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
-        await self.guncelle_katilimci_sayisi(member.guild)
         
         channel = member.guild.get_channel(CIKIS_KANAL_ID)
         if channel is None:

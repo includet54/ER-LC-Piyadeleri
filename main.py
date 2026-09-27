@@ -13,7 +13,9 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        for filename in os.listdir("./cogs"):
+        # __file__ ile göreceli yol — farklı dizinden çalıştırılınca da bozulmaz
+        cogs_dir = os.path.join(os.path.dirname(__file__), "cogs")
+        for filename in os.listdir(cogs_dir):
             if filename.endswith(".py"):
                 try:
                     await self.load_extension(f"cogs.{filename[:-3]}")
@@ -21,19 +23,21 @@ class MyBot(commands.Bot):
                 except Exception as e:
                     print(f"Hata: {filename} → {e}")
 
-        # Kalıcı butonlar
+        # ── Kalıcı (persistent) buton kayıtları ──
+        # Bot yeniden başlasa bile eski panellerdeki butonlar çalışır.
         from cogs.registration import KayitButonView, OnayView
         from cogs.tickets import TicketPanelView, CloseTicketView
         from cogs.market import MarketView, TotemView
         from cogs.vs_talep import VSSetupView, VSChannelView
         from cogs.uyari_sistemi import UyariPanel
-        from cogs.rol_secim import RolSecimView  # <-- BUNU EKLE
+        from cogs.rol_secim import RolSecimView
         from cogs.izin_yonetimi import AnaIzinPaneli
         from cogs.yonetim_paneli import YonetimButonView
         from cogs.cete_sistemi import GangPanelView, AdminGangPanelView
 
         self.add_view(KayitButonView())
-        self.add_view(OnayView())
+        # OnayView: user_id=None → persistent-mode (custom_id'den okur)
+        self.add_view(OnayView(user_id=None))
         self.add_view(TicketPanelView())
         self.add_view(CloseTicketView())
         self.add_view(MarketView())
@@ -41,7 +45,7 @@ class MyBot(commands.Bot):
         self.add_view(UyariPanel())
         self.add_view(VSSetupView())
         self.add_view(VSChannelView())
-        self.add_view(RolSecimView())  # <-- VE BUNU EKLE
+        self.add_view(RolSecimView())
         self.add_view(AnaIzinPaneli())
         self.add_view(YonetimButonView())
         self.add_view(GangPanelView())

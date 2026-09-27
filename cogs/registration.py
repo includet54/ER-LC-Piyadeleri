@@ -105,6 +105,8 @@ class KayitModal(discord.ui.Modal, title="📋 Kayıt Formu"):
                 "Onaylama kanalı bulunamadı, yöneticiye haber ver.", ephemeral=True
             )
 
+        user_id = interaction.user.id
+
         embed = discord.Embed(
             title="🆕 Yeni Kayıt Başvurusu",
             color=discord.Color.blurple(),
@@ -114,11 +116,17 @@ class KayitModal(discord.ui.Modal, title="📋 Kayıt Formu"):
         embed.add_field(name="Roblox Profil Linki", value=self.roblox_link.value, inline=False)
         embed.add_field(name="Cinsiyet", value=self.cinsiyet.value, inline=False)
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
-        embed.set_footer(text=f"ID:{interaction.user.id}")
+        # ID footer'a görsel referans olarak bırakıyoruz; asıl kaynak custom_id'dir
+        embed.set_footer(text=f"Başvuran ID: {user_id}")
         embed.timestamp = discord.utils.utcnow()
 
         whitelist_yetkilisi_rol_id = 1551242344190189718
-        await onay_kanal.send(content=f"<@&{whitelist_yetkilisi_rol_id}>", embed=embed, view=OnayView())
+        # user_id doğrudan OnayView'a geçiliyor — footer parse edilmeyecek
+        await onay_kanal.send(
+            content=f"<@&{whitelist_yetkilisi_rol_id}>",
+            embed=embed,
+            view=OnayView(user_id=user_id),
+        )
         await interaction.response.send_message(
             "✅ Kayıt başvurun alındı! Yetkililer en kısa sürede inceleyecek.", ephemeral=True
         )
@@ -178,45 +186,65 @@ class RedSebepModal(discord.ui.Modal, title="❌ Reddetme Sebebi"):
 
 
 class OnayView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
+    """
+    user_id parametresi verilirse dinamik (yeni başvuru) modda çalışır:
+    buton custom_id'lerine user_id gömülür.
 
-    @discord.ui.button(label="ONAYLA", style=discord.ButtonStyle.green, custom_id="kayit_onayla")
-    async def onayla(self, interaction: discord.Interaction, button: discord.ui.Button):
+    Parametresiz çağrıldığında (bot restart sonrası persistent view kaydı için)
+    boş custom_id prefix'leriyle kaydolur — bu durumda buton callback'leri
+    custom_id'den ID okur.
+    """
+
+    def __init__(self, *, user_id: int | None = None):
+        super().__init__(timeout=None)
+        uid_str = str(user_id) if user_id else "0"
+        # Butonları programatik ekle; custom_id içinde user_id taşısın
+        self.add_item(_OnaylaButon(uid_str))
+        self.add_item(_ReddetButon(uid_str))
+
+
+class _OnaylaButon(discord.ui.Button):
+    def __init__(self, uid_str: str):
+        super().__init__(
+            label="ONAYLA",
+            style=discord.ButtonStyle.green,
+            custom_id=f"kayit_onayla_{uid_str}",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
         if not yetkili_mi(interaction.user):
             return await interaction.response.send_message("Bu işlemi yapma yetkin yok.", ephemeral=True)
 
-        embed = interaction.message.embeds[0]
-        footer_text = embed.footer.text
+        # user_id custom_id'den okunuyor — footer parse edilmiyor
         try:
-            hedef_id = int(footer_text.split("ID:")[1])
-        except Exception:
-            return await interaction.response.send_message("Kullanıcı ID bulunamadı.", ephemeral=True)
+            hedef_id = int(self.custom_id.split("_")[-1])
+        except (ValueError, IndexError):
+            return await interaction.response.send_message("Kullanıcı ID okunamadı.", ephemeral=True)
 
+        embed = interaction.message.embeds[0]
         guild = interaction.guild
         uye = guild.get_member(hedef_id)
         if uye is None:
-            return await interaction.response.send_message("Kullanıcı sunucuda bulunamadı (ayrılmış olabilir).", ephemeral=True)
+            return await interaction.response.send_message(
+                "Kullanıcı sunucuda bulunamadı (ayrılmış olabilir).", ephemeral=True
+            )
 
         gercek_ad = embed.fields[1].value
         roblox_link = embed.fields[2].value
         cinsiyet_cevap = embed.fields[3].value.lower()
 
-        # Rolleri belirleme
         rol_idler = [UYE_ROL_ID, WHITELIST_ROL_ID, ONAYLANMIS_BIREY_ROL_ID]
         if "erkek" in cinsiyet_cevap or cinsiyet_cevap.startswith("e"):
             rol_idler.append(ERKEK_ROL_ID)
         elif "kız" in cinsiyet_cevap or "kiz" in cinsiyet_cevap or cinsiyet_cevap.startswith("k"):
             rol_idler.append(KIZ_ROL_ID)
-        
-        verilecek_roller = [guild.get_role(rid) for rid in rol_idler if guild.get_role(rid) is not None]
 
+        verilecek_roller = [guild.get_role(rid) for rid in rol_idler if guild.get_role(rid) is not None]
         try:
             await uye.add_roles(*verilecek_roller, reason="Kayıt onaylandı")
         except discord.Forbidden:
             pass
 
-        # Kayıtsız rolünü sil
         kayitsiz_rol = guild.get_role(1542271426386591894)
         if kayitsiz_rol in uye.roles:
             try:
@@ -238,21 +266,24 @@ class OnayView(discord.ui.View):
             await uye.send(f"✅ **{guild.name}** sunucusundaki kayıt başvurun onaylandı! Hoş geldin 🎉")
         except discord.Forbidden:
             pass
-            
+
         kayit_log_kanal = interaction.client.get_channel(1552306929571733635)
         if kayit_log_kanal:
             log_embed = discord.Embed(
                 title="Yeni Üye Kaydı",
                 description=f"{uye.mention} aramıza katıldı!",
-                color=discord.Color.green()
+                color=discord.Color.green(),
             )
             log_embed.add_field(name="Roblox Adı", value=roblox_ad, inline=False)
             if roblox_id:
                 log_embed.add_field(name="Roblox ID", value=roblox_id, inline=False)
-                log_embed.add_field(name="Roblox Profil", value=f"[Profile Git](https://www.roblox.com/users/{roblox_id}/profile)", inline=False)
+                log_embed.add_field(
+                    name="Roblox Profil",
+                    value=f"[Profile Git](https://www.roblox.com/users/{roblox_id}/profile)",
+                    inline=False,
+                )
             if roblox_avatar:
                 log_embed.set_thumbnail(url=roblox_avatar)
-                
             await kayit_log_kanal.send(content=uye.mention, embed=log_embed)
 
         yeni_embed = embed.copy()
@@ -262,20 +293,27 @@ class OnayView(discord.ui.View):
             inline=False,
         )
         yeni_embed.color = discord.Color.green()
-
         await interaction.message.edit(embed=yeni_embed, view=None)
-        await interaction.response.send_message("Kullanıcı onaylandı ve roller (Üye, Onaylanmış Birey ve Cinsiyet) verildi.", ephemeral=True)
+        await interaction.response.send_message(
+            "Kullanıcı onaylandı ve roller (Üye, Onaylanmış Birey ve Cinsiyet) verildi.", ephemeral=True
+        )
 
-    @discord.ui.button(label="REDDET", style=discord.ButtonStyle.red, custom_id="kayit_reddet")
-    async def reddet(self, interaction: discord.Interaction, button: discord.ui.Button):
+
+class _ReddetButon(discord.ui.Button):
+    def __init__(self, uid_str: str):
+        super().__init__(
+            label="REDDET",
+            style=discord.ButtonStyle.red,
+            custom_id=f"kayit_reddet_{uid_str}",
+        )
+
+    async def callback(self, interaction: discord.Interaction):
         if not yetkili_mi(interaction.user):
             return await interaction.response.send_message("Bu işlemi yapma yetkin yok.", ephemeral=True)
-        embed = interaction.message.embeds[0]
-        footer_text = embed.footer.text
         try:
-            hedef_id = int(footer_text.split("ID:")[1])
-        except:
-            return await interaction.response.send_message("Kullanıcı ID bulunamadı.", ephemeral=True)
+            hedef_id = int(self.custom_id.split("_")[-1])
+        except (ValueError, IndexError):
+            return await interaction.response.send_message("Kullanıcı ID okunamadı.", ephemeral=True)
         await interaction.response.send_modal(RedSebepModal(hedef_id, interaction.message))
 
 
