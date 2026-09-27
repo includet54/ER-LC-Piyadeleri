@@ -1,0 +1,108 @@
+import discord
+from discord.ext import commands, tasks
+import aiohttp
+import os
+from datetime import datetime
+
+RADAR_KANAL_ID = 1553721461389266974
+
+# Bölge sistemi (Posta kodları vb.) daha sonra buraya entegre edilebilir.
+
+class LiveRadar(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        self.takip_edilen_mesajlar = {}  # {"OyuncuAdı": mesaj_objesi}
+        self.radar_loop.start()
+
+    def cog_unload(self):
+        self.radar_loop.cancel()
+
+    # ÖNEMLİ: 3 Saniye Discord'un Rate Limit (Spam) korumasına takılacağı için 10 saniye yapılmıştır.
+    @tasks.loop(seconds=10)
+    async def radar_loop(self):
+        # Eğer bot henüz hazır değilse bekle
+        if not self.bot.is_ready():
+            return
+            
+        # Railway üzerinden gizli şekilde girilecek ER:LC API Key
+        api_key = os.getenv("ERLC_API_KEY")
+        if not api_key:
+            return
+
+        kanal = self.bot.get_channel(RADAR_KANAL_ID)
+        if not kanal:
+            return
+
+        # ER:LC API'sinden anlık sunucu verisini çek
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {'server-key': api_key}
+                async with session.get('https://api.erlc.gg/v2/server', headers=headers, timeout=5) as resp:
+                    if resp.status != 200:
+                        return
+                    data = await resp.json()
+                    players = data.get("Players", [])
+        except Exception:
+            return
+
+        aktif_oyuncular = {}
+        for p in players:
+            player_str = p.get("Player", "")
+            if not player_str:
+                continue
+            
+            isim = player_str.split(':')[0]
+            loc = p.get("Location", {})
+            x = loc.get("LocationX", 0)
+            y = loc.get("LocationY", 0)
+            z = loc.get("LocationZ", 0)
+            
+            aktif_oyuncular[isim] = {"x": x, "y": y, "z": z}
+
+        # 1. Oyuncuların mesajlarını oluştur veya güncelle
+        for isim, loc in aktif_oyuncular.items():
+            zaman = datetime.now().strftime("%H:%M:%S")
+            
+            embed = discord.Embed(
+                title=f"📡 Radar: {isim}",
+                description=(
+                    f"**📍 Konum (Koordinatlar):**\n"
+                    f"X: `{loc['x']}` | Y: `{loc['y']}` | Z: `{loc['z']}`\n\n"
+                    f"🔄 *Son Güncelleme: {zaman}*"
+                ),
+                color=discord.Color.blue()
+            )
+            
+            if isim in self.takip_edilen_mesajlar:
+                try:
+                    msg = self.takip_edilen_mesajlar[isim]
+                    await msg.edit(embed=embed)
+                except discord.NotFound:
+                    # Mesaj elle silinmişse yenisini gönder
+                    msg = await kanal.send(embed=embed)
+                    self.takip_edilen_mesajlar[isim] = msg
+                except Exception:
+                    pass
+            else:
+                try:
+                    # Yeni bağlanan oyuncu için log mesajı oluştur
+                    msg = await kanal.send(embed=embed)
+                    self.takip_edilen_mesajlar[isim] = msg
+                except Exception:
+                    pass
+
+        # 2. Sunucudan çıkan oyuncuları temizle ve mesajlarını inaktif (Kırmızı) yap
+        cikanlar = [isim for isim in self.takip_edilen_mesajlar if isim not in aktif_oyuncular]
+        for isim in cikanlar:
+            msg = self.takip_edilen_mesajlar.pop(isim)
+            try:
+                embed = msg.embeds[0]
+                embed.color = discord.Color.red()
+                embed.title = f"🔴 Çevrimdışı: {isim}"
+                embed.description = "❌ Oyuncu sunucudan ayrıldı. İzleme sonlandırıldı."
+                await msg.edit(embed=embed)
+            except Exception:
+                pass
+
+async def setup(bot):
+    await bot.add_cog(LiveRadar(bot))
