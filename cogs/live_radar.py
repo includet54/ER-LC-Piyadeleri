@@ -17,32 +17,33 @@ class LiveRadar(commands.Cog):
     def cog_unload(self):
         self.radar_loop.cancel()
 
-    # ÖNEMLİ: 3 Saniye Discord'un Rate Limit (Spam) korumasına takılacağı için 10 saniye yapılmıştır.
     @tasks.loop(seconds=10)
     async def radar_loop(self):
-        # Eğer bot henüz hazır değilse bekle
         if not self.bot.is_ready():
             return
             
-        # Railway üzerinden gizli şekilde girilecek ER:LC API Key
         api_key = os.getenv("ERLC_API_KEY")
         if not api_key:
+            print("[RADAR HATA] ERLC_API_KEY bulunamadı! Railway Variables kısmını kontrol et.")
             return
 
         kanal = self.bot.get_channel(RADAR_KANAL_ID)
         if not kanal:
+            print(f"[RADAR HATA] Kanal bulunamadı! ID: {RADAR_KANAL_ID}. Botun kanalı görme yetkisi var mı?")
             return
 
-        # ER:LC API'sinden anlık sunucu verisini çek
         try:
             async with aiohttp.ClientSession() as session:
-                headers = {'server-key': api_key}
+                headers = {'Server-Key': api_key}
                 async with session.get('https://api.erlc.gg/v2/server', headers=headers, timeout=5) as resp:
                     if resp.status != 200:
+                        print(f"[RADAR HATA] API'ye bağlanılamadı. HTTP Kodu: {resp.status}")
                         return
                     data = await resp.json()
                     players = data.get("Players", [])
-        except Exception:
+                    print(f"[RADAR BİLGİ] API'den {len(players)} oyuncu çekildi.")
+        except Exception as e:
+            print(f"[RADAR HATA] API isteği sırasında bir çökme yaşandı: {e}")
             return
 
         aktif_oyuncular = {}
