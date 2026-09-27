@@ -222,10 +222,11 @@ class _OnaylaButon(discord.ui.Button):
             return await interaction.response.send_message("Kullanıcı ID okunamadı.", ephemeral=True)
 
         embed = interaction.message.embeds[0]
+        await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         uye = guild.get_member(hedef_id)
         if uye is None:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "Kullanıcı sunucuda bulunamadı (ayrılmış olabilir).", ephemeral=True
             )
 
@@ -294,7 +295,7 @@ class _OnaylaButon(discord.ui.Button):
         )
         yeni_embed.color = discord.Color.green()
         await interaction.message.edit(embed=yeni_embed, view=None)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "Kullanıcı onaylandı ve roller (Üye, Onaylanmış Birey ve Cinsiyet) verildi.", ephemeral=True
         )
 

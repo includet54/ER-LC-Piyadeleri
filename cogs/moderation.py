@@ -35,6 +35,11 @@ class Moderation(commands.Cog):
     async def kick(self, interaction: discord.Interaction, uye: discord.Member, sebep: str = "Sebep belirtilmedi"):
         if not interaction.user.guild_permissions.kick_members:
             return await interaction.response.send_message("Yetkin yok.", ephemeral=True)
+        # Yetkili hiyerarşi kontrolü
+        if uye.top_role >= interaction.user.top_role and interaction.user.id != interaction.guild.owner_id:
+            return await interaction.response.send_message(
+                "❌ Bu üyeye işlem yapamazsın — hedefin rolü senden üstün veya sana eşit.", ephemeral=True
+            )
         # Bot hiyerarşi kontrolü
         if uye.top_role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
@@ -54,6 +59,12 @@ class Moderation(commands.Cog):
     async def ban(self, interaction: discord.Interaction, uye: discord.Member, sebep: str = "Sebep belirtilmedi"):
         if not interaction.user.guild_permissions.ban_members:
             return await interaction.response.send_message("Yetkin yok.", ephemeral=True)
+        # Yetkili hiyerarşi kontrolü
+        if uye.top_role >= interaction.user.top_role and interaction.user.id != interaction.guild.owner_id:
+            return await interaction.response.send_message(
+                "❌ Bu üyeye işlem yapamazsın — hedefin rolü senden üstün veya sana eşit.", ephemeral=True
+            )
+        # Bot hiyerarşi kontrolü
         if uye.top_role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
                 "❌ Bu üyeyi yasaklayamam — botun rolü hedefin rolünden düşük veya eşit.", ephemeral=True
@@ -74,6 +85,12 @@ class Moderation(commands.Cog):
             return await interaction.response.send_message("Yetkin yok.", ephemeral=True)
         if dakika < 1 or dakika > 40320:
             return await interaction.response.send_message("1 ile 40320 arasında sayı gir.", ephemeral=True)
+        # Yetkili hiyerarşi kontrolü
+        if uye.top_role >= interaction.user.top_role and interaction.user.id != interaction.guild.owner_id:
+            return await interaction.response.send_message(
+                "❌ Bu üyeye işlem yapamazsın — hedefin rolü senden üstün veya sana eşit.", ephemeral=True
+            )
+        # Bot hiyerarşi kontrolü
         if uye.top_role >= interaction.guild.me.top_role:
             return await interaction.response.send_message(
                 "❌ Bu üyeye timeout uygulayamam — botun rolü hedefin rolünden düşük veya eşit.", ephemeral=True

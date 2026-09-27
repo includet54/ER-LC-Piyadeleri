@@ -580,7 +580,7 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
         )
         
         # Logo thumbnail (sağ üst)
-        logo_path = os.path.join("assets", "uyari_logo.png")
+        logo_path = os.path.join(os.path.dirname(__file__), "..", "assets", "uyari_logo.png")
         dosya = None
         if os.path.exists(logo_path):
             dosya = discord.File(logo_path, filename="uyari_logo.png")
@@ -800,6 +800,11 @@ class UyariSistemi(commands.Cog):
                 
                 for guild in self.bot.guilds:
                     member = guild.get_member(int(uid))
+                    if member is None:
+                        try:
+                            member = await guild.fetch_member(int(uid))
+                        except discord.NotFound:
+                            continue
                     if member:
                         jail_rol = guild.get_role(JAIL_ROL)
                         if jail_rol and jail_rol in member.roles:

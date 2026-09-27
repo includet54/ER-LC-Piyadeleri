@@ -290,8 +290,13 @@ class Market(commands.Cog):
         count = 0
         for member in guild.members:
             if not member.bot:
-                self.esya_ekle(member.id, "zirh", 1)
+                uid = str(member.id)
+                env = self.envanter.setdefault(uid, {})
+                env["zirh"] = env.get("zirh", 0) + 1
                 count += 1
+                
+        # Toplu kaydet (O(1) disk I/O)
+        kaydet(ENVANTER_FILE, self.envanter)
                 
         await interaction.followup.send(f"✅ Sunucudaki toplam **{count}** üyeye 1 adet **🪖 Demir Zırh** başarıyla hediye edildi!")
 

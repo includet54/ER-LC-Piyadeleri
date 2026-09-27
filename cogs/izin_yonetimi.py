@@ -20,7 +20,8 @@ class KanalSecim(discord.ui.ChannelSelect):
         super().__init__(placeholder="📁 İzinlerini ayarlamak istediğiniz kanalı seçin...", min_values=1, max_values=1)
 
     async def callback(self, interaction: discord.Interaction):
-        channel = self.values[0]
+        # AppCommandChannel'ı tam kanal objesine çeviriyoruz
+        channel = interaction.guild.get_channel(self.values[0].id) or self.values[0]
         # Kanal seçildikten sonra hangi rol için ayarlanacağını sormak adına rol seçimine yönlendirelim
         view = discord.ui.View()
         view.add_item(KanalRolSecim(channel))
@@ -122,8 +123,8 @@ class KanalIzinView(discord.ui.View):
 
     @discord.ui.button(label="Mesaj Gönder / Konuş", emoji="💬", style=discord.ButtonStyle.primary)
     async def btn_send(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Sesli kanalsa speak, metin kanalıysa send_messages
-        if isinstance(self.channel, discord.VoiceChannel):
+        # Sesli veya Sahne kanalıysa speak, metin kanalıysa send_messages
+        if isinstance(self.channel, (discord.VoiceChannel, discord.StageChannel)):
             await self.toggle_channel_perm(interaction, "speak", "Konuşma")
         else:
             await self.toggle_channel_perm(interaction, "send_messages", "Mesaj Gönderme")

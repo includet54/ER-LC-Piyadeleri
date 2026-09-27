@@ -706,7 +706,7 @@ class AdminGangPanelView(discord.ui.View):
         
         cete_data = load_json(DATA_FILE)
         options = []
-        for cid, c in cete_data.items():
+        for cid, c in list(cete_data.items())[:25]:
             warns = c.get('warnings', 0)
             options.append(discord.SelectOption(label=c['name'][:25], description=f"Boss: {c['boss']} | Uyarı: {warns}/3", value=cid))
             
