@@ -52,9 +52,10 @@ def _normalize(text: str) -> str:
 def _build_pattern(word: str) -> re.Pattern:
     r"""
     Verilen kelimenin aralarına herhangi bir karakter/boşluk girebileceği
-    toleranslı bir regex deseni oluşturur. Örneğin "sik" → s\W*i\W*k
+    toleranslı bir regex deseni oluşturur. Örneğin "sik" → \b s\W*i\W*k \b
     """
-    return re.compile(r"\W*".join(re.escape(c) for c in word), re.IGNORECASE)
+    pattern_str = r"\W*".join(re.escape(c) for c in word)
+    return re.compile(r"\b" + pattern_str + r"\b", re.IGNORECASE)
 
 
 # ============================
