@@ -35,13 +35,17 @@ class LiveRadar(commands.Cog):
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {'Server-Key': api_key}
-                async with session.get('https://api.erlc.gg/v2/server', headers=headers, timeout=5) as resp:
+                # API dökümanına göre ek veriler için query parametresi gerekebilir. (örn: ?players=true)
+                async with session.get('https://api.erlc.gg/v2/server?players=true', headers=headers, timeout=5) as resp:
                     if resp.status != 200:
                         print(f"[RADAR HATA] API'ye bağlanılamadı. HTTP Kodu: {resp.status}", flush=True)
                         return
                     data = await resp.json()
                     players = data.get("Players", [])
-                    print(f"[RADAR BİLGİ] API'den {len(players)} oyuncu çekildi.", flush=True)
+                    current_players_count = data.get("CurrentPlayers", "Bilinmiyor")
+                    print(f"[RADAR BİLGİ] Sunucuda API'ye göre {current_players_count} kişi var. Çekilen detaylı oyuncu sayısı: {len(players)}", flush=True)
+                    if len(players) == 0 and current_players_count != 0 and current_players_count != "Bilinmiyor":
+                        print(f"[RADAR DİAGNOSTİK] API'den dönen veriler: {list(data.keys())}", flush=True)
         except Exception as e:
             print(f"[RADAR HATA] API isteği sırasında bir çökme yaşandı: {e}", flush=True)
             return
