@@ -72,7 +72,7 @@ class Welcome(commands.Cog):
         )
         embed.set_thumbnail(url=member.display_avatar.url)
 
-        gif_path = "assets/hosgeldin.gif"
+        gif_path = os.path.join(os.path.dirname(__file__), "..", "assets", "hosgeldin.gif")
         dosya = None
         if os.path.exists(gif_path):
             dosya = discord.File(gif_path, filename="hosgeldin.gif")

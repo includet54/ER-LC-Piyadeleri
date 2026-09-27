@@ -136,10 +136,12 @@ class AdminApprovalView(discord.ui.View):
         members_to_add = [boss_id] + accepted_members
         for uid in members_to_add:
             member = guild.get_member(uid)
-            if member:
-                await member.add_roles(new_role)
-                if uid == boss_id and boss_role:
-                    await member.add_roles(boss_role)
+            if not member:
+                # Üye sunucudan ayrılmış; atlıyoruz
+                continue
+            await member.add_roles(new_role)
+            if uid == boss_id and boss_role:
+                await member.add_roles(boss_role)
         
         # 3. Kategorileri Bul / Oluştur
         illegal_role = guild.get_role(1539249508314259567)

@@ -140,7 +140,7 @@ class Tickets(commands.Cog):
         )
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         
-        file = discord.File("assets/yeni_banner.png", filename="yeni_banner.png")
+        file = discord.File(os.path.join(os.path.dirname(__file__), "..", "assets", "yeni_banner.png"), filename="yeni_banner.png")
         embed.set_image(url="attachment://yeni_banner.png")
             
         await interaction.channel.send(embed=embed, file=file, view=TicketPanelView())

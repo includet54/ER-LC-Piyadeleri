@@ -171,34 +171,54 @@ def check_official_permissions(member: discord.Member) -> bool:
     if member.guild_permissions.administrator: return True
     return any(r.id in [KURUCU_ROL_ID, LEGAL_ROL_ID] for r in member.roles)
 
-def find_asset_image(base_name: str, is_official: bool = False):
-    variations = []
-    
-    # Format variations
+def _build_asset_cache() -> dict[str, str]:
+    """
+    Bot başlarken assets/ klasöründeki tüm dosyaları bir kez tarar ve
+    lowercase isim → gerçek yol eşlemesini döndürür.
+    Bu sayede her autocomplete tuşuna basışta disk I/O yapılmaz.
+    """
+    cache: dict[str, str] = {}
+    assets_dir = os.path.join(os.path.dirname(__file__), "..", "assets")
+    if not os.path.isdir(assets_dir):
+        return cache
+    for fname in os.listdir(assets_dir):
+        fpath = os.path.join(assets_dir, fname)
+        if os.path.isfile(fpath):
+            # Uzantısız küçük harf ismi → gerçek yol
+            name_no_ext = os.path.splitext(fname)[0].lower()
+            cache[name_no_ext] = fpath
+    return cache
+
+# Modül yüklendiğinde bir kez çalışır
+_ASSET_CACHE: dict[str, str] = _build_asset_cache()
+
+
+def find_asset_image(base_name: str, is_official: bool = False) -> str | None:
+    """
+    Cache üzerinden arama yapar — disk I/O yok.
+    """
     name_underscored = base_name.replace(" ", "_")
     prefix_under = "(LEO)_" if is_official else ""
-    prefix_space = "(LEO) " if is_official else ""
-    
-    # 1. Exact match
-    variations.append(f"{base_name}")
-    # 2. Exact match + _Original
-    variations.append(f"{base_name}_Original")
-    # 3. Underscored
-    variations.append(f"{name_underscored}")
-    # 4. Underscored + _Original (Matches most civilian vehicles)
-    variations.append(f"{name_underscored}_Original")
-    
-    if is_official:
-        variations.append(f"{prefix_space}{base_name}")
-        variations.append(f"{prefix_space}{base_name}_Original")
-        variations.append(f"{prefix_under}{name_underscored}")
-        variations.append(f"{prefix_under}{name_underscored}_Original") # Matches most official vehicles
+    prefix_space = "(LEO) "  if is_official else ""
 
-    for var in variations:
-        for ext in [".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
-            path = os.path.join("assets", f"{var}{ext}")
-            if os.path.exists(path):
-                return path
+    candidates = [
+        base_name,
+        f"{base_name}_Original",
+        name_underscored,
+        f"{name_underscored}_Original",
+    ]
+    if is_official:
+        candidates += [
+            f"{prefix_space}{base_name}",
+            f"{prefix_space}{base_name}_Original",
+            f"{prefix_under}{name_underscored}",
+            f"{prefix_under}{name_underscored}_Original",
+        ]
+
+    for candidate in candidates:
+        path = _ASSET_CACHE.get(candidate.lower())
+        if path:
+            return path
     return None
 
 class MapView(discord.ui.View):
@@ -292,3 +312,5 @@ class AssetsCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(AssetsCog(bot))
+    # MapView panelini bot restart sonrası da aktif tut
+    bot.add_view(MapView())

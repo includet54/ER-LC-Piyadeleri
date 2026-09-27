@@ -166,8 +166,16 @@ class VSRequestView(View):
                     await interaction.followup.send("❌ Zaten açık bir VS talebiniz bulunuyor. Mevcut kanalınız kapanmadan yenisini açamazsınız!", ephemeral=True)
                     return
 
-        # Kanal ismi
-        channel_name = f"vs-{requester.display_name[:10]}-vs-{victim.display_name[:10]}".lower().replace(" ", "-")
+        # Kanal ismi — Discord kanal adlarında emoji ve özel karakterler 400 hatasına neden olur.
+        # Güvenli karakterleri filtrele: sadece harf, rakam, boşluk ve tire bırak.
+        import re as _re
+        def _guveni_yap(s: str) -> str:
+            s = s[:10]
+            s = _re.sub(r"[^\w\s-]", "", s, flags=_re.UNICODE)
+            s = s.strip().replace(" ", "-").lower()
+            return s or "oyuncu"
+
+        channel_name = f"vs-{_guveni_yap(requester.display_name)}-vs-{_guveni_yap(victim.display_name)}"
 
         # Overwrites
         overwrites = {

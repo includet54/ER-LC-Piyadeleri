@@ -261,7 +261,9 @@ class YardimBekleme(commands.Cog):
         if member.bot: return
 
         if before.channel is None and after.channel is not None:
-            self.active_voice_sessions[member.id] = discord.utils.utcnow()
+            # Yalnızca yetkililerin ses süresini takip et
+            if any(r.id == YONETIM_EKIBI_ROL for r in member.roles):
+                self.active_voice_sessions[member.id] = discord.utils.utcnow()
         elif before.channel is not None and after.channel is None:
             if member.id in self.active_voice_sessions:
                 join_time = self.active_voice_sessions.pop(member.id)
@@ -330,3 +332,6 @@ class YardimBekleme(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(YardimBekleme(bot))
+    # Persistent views: bot restart sonrası aktif destek mesajlarındaki butonlar çalışmaya devam eder
+    bot.add_view(DestekAktifView(yetkili_id=0, yardim_isteyen_id=0, baslangic_zamani=__import__("datetime").datetime.utcnow()))
+    bot.add_view(DevralView(yardim_isteyen_id=0))

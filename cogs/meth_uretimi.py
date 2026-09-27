@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import random
 import asyncio
+import time
 
 OLU_ROL_ID = 1544777693030125720
 ARANAN_ROL_ID = 1549155694714953870
@@ -355,8 +356,8 @@ class MethUretimi(commands.Cog):
         # Üretime başarılı şekilde başlanıyor, süreyi başlat:
         self.cooldowns[interaction.user.id] = now
 
-        # Consume the item
-        market_cog.esya_sil(interaction.user.id, "meth", 1)
+        # ⚠️ Ürün henüz SİLİNMİYOR — oyun bitmeden tüketim yapılmaz.
+        # Eğer oyun başarıyla tamamlanırsa aşağıda silinecek.
 
         await interaction.response.send_message("🧪 **Üretim Başlıyor!** Karşına çıkacak 8 acil duruma 10 saniye içinde doğru tepkiyi vermelisin. Gözünü kırpma!", ephemeral=True)
         await asyncio.sleep(2)
@@ -394,7 +395,9 @@ class MethUretimi(commands.Cog):
                 dogru_sayisi += 1
 
         if not zaman_asimi and dogru_sayisi >= 4:
-            # Başarılı
+            # Başarılı — ürünü şimdi tüket
+            market_cog.esya_sil(interaction.user.id, "meth", 1)
+
             if dogru_sayisi == 4:
                 kazanc = random.randint(300, 500)
             elif dogru_sayisi == 5:
@@ -415,8 +418,8 @@ class MethUretimi(commands.Cog):
             
             try:
                 await interaction.user.send(embed=sonuc_embed)
-            except:
-                pass
+            except discord.Forbidden:
+                pass  # DM kapalı — sessizce devam et
 
         else:
             # Başarısız -> İhbar

@@ -33,13 +33,21 @@ class MusicControlView(discord.ui.View):
     async def prev_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         vc = interaction.guild.voice_client
         state = self.cog.get_state(self.guild_id)
-        if vc and state["index"] > 0:
-            state["index"] -= 2  # play_next fonksiyonu çağrıldığında 1 ekleyeceği için 2 eksiltiyoruz
-            vc.stop()  # Mevcut şarkıyı durdurduğumuz an after eventi tetiklenir ve play_next çalışır
-            await asyncio.sleep(0.5) # Bekleme ekleyerek play_next'in indexi güncellemesine izin veriyoruz
-            await self.update_panel(interaction)
-        else:
-            await interaction.response.send_message("❌ Önceki şarkı yok.", ephemeral=True)
+        if not (vc and state["index"] > 0):
+            return await interaction.response.send_message("❌ Önceki şarkı yok.", ephemeral=True)
+
+        # Önceki şarkıya geç:
+        # play_next her çağrılışta index += 1 yapar, bu yüzden hedef - 1'e ayarlıyoruz.
+        # Önce durduruyoruz; after callback play_next'i tetikler ve index'i hedefimize getirir.
+        state["index"] = max(-1, state["index"] - 2)
+
+        # Mevcut sesi durdur; after callback otomatik play_next'i çağırır.
+        # Güvenli bekleme: interaction'ı hemen cevaplayıp ardından paneli güncelliyoruz.
+        await interaction.response.defer()
+        vc.stop()
+        # play_next senkron olarak loop'a schedule edilir; bir tick sonra hazır.
+        await asyncio.sleep(0.1)
+        await self.update_panel(interaction)
 
     @discord.ui.button(emoji="⏯️", style=discord.ButtonStyle.primary, custom_id="btn_pause_resume")
     async def pause_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -59,8 +67,9 @@ class MusicControlView(discord.ui.View):
         vc = interaction.guild.voice_client
         state = self.cog.get_state(self.guild_id)
         if vc and state["index"] < len(state["queue"]) - 1:
+            await interaction.response.defer()
             vc.stop()  # Mevcut şarkıyı durdurduğumuz an sonrakine geçer
-            await asyncio.sleep(0.5) # Bekleme ekleyerek play_next'in indexi güncellemesine izin veriyoruz
+            await asyncio.sleep(0.1)
             await self.update_panel(interaction)
         else:
             await interaction.response.send_message("❌ Sırada başka şarkı yok.", ephemeral=True)

@@ -58,43 +58,51 @@ class YonetimUserSelect(discord.ui.UserSelect):
 
         try:
             if self.islem_turu == "trial":
-                if trial_rol: await hedef_uye.add_roles(trial_rol)
-                if wl_rol: await hedef_uye.add_roles(wl_rol)
-                if ticket_yetk_rol: await hedef_uye.add_roles(ticket_yetk_rol)
-                if kapisma_yetk_rol: await hedef_uye.add_roles(kapisma_yetk_rol)
+                # Tüm roller tek API çağrısında verilir
+                roller = [r for r in [trial_rol, wl_rol, ticket_yetk_rol, kapisma_yetk_rol] if r]
+                if roller:
+                    await hedef_uye.add_roles(*roller)
                 mesaj = f"✅  {hedef_uye.mention} başarıyla **Trial Staff**, **Whitelist Yetkilisi**, **Ticket Yetkilisi** ve **Kapışma Talep Yetkilisi** yapıldı."
 
             elif self.islem_turu == "staff":
                 if TRIAL_STAFF_ID not in uye_rol_idleri:
                     return await interaction.followup.send("❌ Bu kişiye **Staff** verebilmek için üzerinde **Trial Staff** rolü olması ZORUNLUDUR!", ephemeral=True)
-                if staff_rol: await hedef_uye.add_roles(staff_rol)
-                if trial_rol: await hedef_uye.remove_roles(trial_rol)
-                if destek_bekleme_rol: await hedef_uye.add_roles(destek_bekleme_rol)
+                ekle = [r for r in [staff_rol, destek_bekleme_rol] if r]
+                kaldir = [r for r in [trial_rol] if r]
+                if ekle:
+                    await hedef_uye.add_roles(*ekle)
+                if kaldir:
+                    await hedef_uye.remove_roles(*kaldir)
                 mesaj = f"✅  {hedef_uye.mention} başarıyla **Staff** ve **Destek Bekleme Yetkilisi** yapıldı (Trial Staff alındı)."
 
             elif self.islem_turu == "senior":
                 if STAFF_ID not in uye_rol_idleri:
                     return await interaction.followup.send("❌ Bu kişiye **Senior Staff** verebilmek için üzerinde **Staff** rolü olması ZORUNLUDUR!", ephemeral=True)
-                if senior_rol: await hedef_uye.add_roles(senior_rol)
-                if staff_rol: await hedef_uye.remove_roles(staff_rol)
+                if senior_rol:
+                    await hedef_uye.add_roles(senior_rol)
+                if staff_rol:
+                    await hedef_uye.remove_roles(staff_rol)
                 mesaj = f"✅ {hedef_uye.mention} başarıyla **Senior Staff** yapıldı (Staff alındı)."
 
             elif self.islem_turu == "mesaj":
                 if not has_staff_base:
                     return await interaction.followup.send("❌ Bu rolü alacak kişinin Staff rollerinden birine (Trial Staff, Staff, Senior Staff) sahip olması ZORUNLUDUR!", ephemeral=True)
-                if mesaj_rol: await hedef_uye.add_roles(mesaj_rol)
+                if mesaj_rol:
+                    await hedef_uye.add_roles(mesaj_rol)
                 mesaj = f"✅ {hedef_uye.mention} başarıyla **Mesaj Denetimcisi** yapıldı."
 
             elif self.islem_turu == "ses":
                 if not has_staff_base:
                     return await interaction.followup.send("❌ Bu rolü alacak kişinin Staff rollerinden birine (Trial Staff, Staff, Senior Staff) sahip olması ZORUNLUDUR!", ephemeral=True)
-                if ses_rol: await hedef_uye.add_roles(ses_rol)
+                if ses_rol:
+                    await hedef_uye.add_roles(ses_rol)
                 mesaj = f"✅ {hedef_uye.mention} başarıyla **Ses Kanalı Yetkilisi** yapıldı."
 
             elif self.islem_turu == "takma_ad":
                 if not has_staff_base:
                     return await interaction.followup.send("❌ Bu rolü alacak kişinin Staff rollerinden birine (Trial Staff, Staff, Senior Staff) sahip olması ZORUNLUDUR!", ephemeral=True)
-                if takma_ad_rol: await hedef_uye.add_roles(takma_ad_rol)
+                if takma_ad_rol:
+                    await hedef_uye.add_roles(takma_ad_rol)
                 mesaj = f"✅ {hedef_uye.mention} başarıyla **Takma Ad Yetkilisi** yapıldı."
 
             await interaction.followup.send(mesaj, ephemeral=True)
