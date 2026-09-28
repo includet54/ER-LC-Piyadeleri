@@ -35,8 +35,8 @@ class LiveRadar(commands.Cog):
         try:
             async with aiohttp.ClientSession() as session:
                 headers = {'Server-Key': api_key}
-                # API dökümanına göre ek veriler için query parametresi gerekebilir. (örn: ?players=true)
-                async with session.get('https://api.erlc.gg/v2/server?players=true', headers=headers, timeout=5) as resp:
+                # ER:LC API'sinde Players parametresi BÜYÜK HARFLE (Players=true) yazılmalıdır!
+                async with session.get('https://api.erlc.gg/v2/server?Players=true', headers=headers, timeout=5) as resp:
                     if resp.status != 200:
                         print(f"[RADAR HATA] API'ye bağlanılamadı. HTTP Kodu: {resp.status}", flush=True)
                         return
@@ -59,10 +59,20 @@ class LiveRadar(commands.Cog):
             isim = player_str.split(':')[0]
             loc = p.get("Location", {})
             x = loc.get("LocationX", 0)
-            y = loc.get("LocationY", 0)
+            y = loc.get("LocationY", loc.get("Y", "-"))
             z = loc.get("LocationZ", 0)
+            posta_kodu = loc.get("PostalCode", "-")
+            sokak = loc.get("StreetName", "-")
+            bina = loc.get("BuildingNumber", "-")
             
-            aktif_oyuncular[isim] = {"x": x, "y": y, "z": z}
+            aktif_oyuncular[isim] = {
+                "x": round(x, 2) if isinstance(x, (int, float)) else x,
+                "y": round(y, 2) if isinstance(y, (int, float)) else y,
+                "z": round(z, 2) if isinstance(z, (int, float)) else z,
+                "postal": posta_kodu,
+                "street": sokak,
+                "building": bina
+            }
 
         # 1. Oyuncuların mesajlarını oluştur veya güncelle
         for isim, loc in aktif_oyuncular.items():
@@ -72,7 +82,9 @@ class LiveRadar(commands.Cog):
                 title=f"📡 Radar: {isim}",
                 description=(
                     f"**📍 Konum (Koordinatlar):**\n"
-                    f"X: `{loc['x']}` | Y: `{loc['y']}` | Z: `{loc['z']}`\n\n"
+                    f"X: `{loc['x']}` | Z: `{loc['z']}`" + (f" | Y: `{loc['y']}`" if loc['y'] != "-" else "") + "\n\n"
+                    f"📮 **Posta Kodu:** `{loc['postal']}`\n"
+                    f"🛣️ **Cadde / Sokak:** `{loc['street']}` (No: `{loc['building']}`)\n\n"
                     f"🔄 *Son Güncelleme: {zaman}*"
                 ),
                 color=discord.Color.blue()
