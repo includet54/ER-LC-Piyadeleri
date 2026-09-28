@@ -210,50 +210,44 @@ class LiveRadar(commands.Cog):
                 street = loc.get("street", "-") if loc else "-"
                 bina = loc.get("building", "-") if loc else "-"
 
-                # Safezone kontrolü
+                # Safezone kontrolü (Sadece tanımlı Safezone bölgelerindeki ihlallere odaklanıyoruz)
                 safezone = bolge_kontrol(x_val, z_val, bolgeler_data) if loc else None
+                if not safezone:
+                    # Olay Safezone içinde değilse loglama yapma, sadece Safezone ihlallerine odaklan
+                    continue
 
-                # Günlük cinayet sayacı
-                gunluk_sozluk = kill_tracker.setdefault("gunluk", {}).setdefault(bugun, {})
-                katil_sayi = gunluk_sozluk.get(killer_name, 0) + 1
-                gunluk_sozluk[killer_name] = katil_sayi
+                # Günlük Safezone ihlal sayacı
+                gunluk_sozluk = kill_tracker.setdefault("gunluk_safezone_ihlalleri", {}).setdefault(bugun, {})
+                ihlal_sayi = gunluk_sozluk.get(killer_name, 0) + 1
+                gunluk_sozluk[killer_name] = ihlal_sayi
 
-                if safezone:
-                    durum_baslik = f"🚨 SAFEZONE İHLALİ: {safezone}"
-                    renk = discord.Color.red()
-                else:
-                    durum_baslik = "🟢 Güvenli Bölge Dışı"
-                    renk = discord.Color.orange()
-
-                if katil_sayi == 1:
-                    tekrar_metni = "Bugün 1. Kez"
-                elif katil_sayi == 2:
-                    tekrar_metni = "Bugün 2. Kez"
-                else:
-                    tekrar_metni = f"Bugün {katil_sayi}. Kez (⚠️ DİKKAT: Tekrarlayan RDM Şüphesi!)"
-
-                # Detaylı Embed oluştur
+                # Safezone İhlal Embed'i
                 embed = discord.Embed(
-                    title="🚨 SAFEZONE İHLALİ & RDM ALARMI" if safezone else "⚔️ ER:LC Öldürme (Kill) Logu",
-                    color=renk,
+                    title="🚨 SAFEZONE İHLALİ TESPİT EDİLDİ",
+                    description=f"**{killer_name}**, korumalı bölge olan **{safezone}** sınırları içerisinde saldırı/cinayet gerçekleştirdi!",
+                    color=discord.Color.red(),
                     timestamp=datetime.fromtimestamp(ts, tz=timezone.utc) if ts else datetime.now(tz_tr)
                 )
-                embed.add_field(name="👤 Katil (Saldırgan)", value=f"**{killer_name}** `(ID: {killer_id})`", inline=True)
-                embed.add_field(name="🎯 Kurban", value=f"**{victim_name}** `(ID: {victim_id})`", inline=True)
+                embed.add_field(name="👤 İhlal Eden (Saldırgan)", value=f"**{killer_name}** `(ID: {killer_id})`", inline=True)
+                embed.add_field(name="🎯 Mağdur (Kurban)", value=f"**{victim_name}** `(ID: {victim_id})`", inline=True)
                 embed.add_field(name="🔫 Kullanılan Silah", value=f"`{silah}`", inline=True)
 
-                konum_metni = f"**X:** `{x_val}` | **Z:** `{z_val}`\n**📮 Posta Kodu:** `{postal}`\n**🛣️ Cadde / No:** `{street}` (No: `{bina}`)"
-                embed.add_field(name="📍 Olay Yeri / Konum Bilgisi", value=konum_metni, inline=False)
-                embed.add_field(name="🛡️ Safezone Durumu", value=f"**{durum_baslik}**", inline=True)
-                embed.add_field(name="📊 Günlük Cinayet / İhlal", value=f"`{tekrar_metni}`", inline=True)
-                embed.set_footer(text="ER-LC Piyadeleri • Otomatik RDM & Güvenlik Takip Sistemi")
+                konum_metni = (
+                    f"**🛡️ İhlal Bölgesi:** `{safezone}`\n"
+                    f"**📍 Koordinatlar:** X: `{x_val}` | Z: `{z_val}`\n"
+                    f"**📮 Posta Kodu:** `{postal}`\n"
+                    f"**🛣️ Cadde / Bina:** `{street}` (No: `{bina}`)"
+                )
+                embed.add_field(name="📍 Olay Yeri Detayları", value=konum_metni, inline=False)
+                embed.add_field(name="📊 Günlük Safezone İhlali", value=f"Bugün **{ihlal_sayi}.** kez tekrarladı", inline=True)
+                embed.set_footer(text="ER-LC Piyadeleri • Safezone Güvenlik Takip Sistemi")
 
                 if rdm_kanal:
                     try:
                         await rdm_kanal.send(embed=embed)
-                        print(f"[RDM LOG] {killer_name} -> {victim_name} logu başarıyla gönderildi. (Bölge: {safezone or 'Serbest'}, Tekrar: {katil_sayi})", flush=True)
+                        print(f"[SAFEZONE İHLALİ] {killer_name} -> {victim_name} ({safezone}) logu gönderildi. (Tekrar: {ihlal_sayi})", flush=True)
                     except Exception as e:
-                        print(f"[RDM LOG HATA] Kanala mesaj atılamadı! Yetkiyi kontrol et: {e}", flush=True)
+                        print(f"[SAFEZONE LOG HATA] Kanala mesaj atılamadı! Yetkiyi kontrol et: {e}", flush=True)
 
             kaydet_json(KILLER_FILE, kill_tracker)
 
