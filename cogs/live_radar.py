@@ -8,9 +8,34 @@ from datetime import datetime, timezone, timedelta
 RADAR_KANAL_ID = 1553721461389266974
 RDM_LOG_KANAL_ID = 1554099605837185044
 
-DATA_DIR = "data"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 BOLGELER_FILE = os.path.join(DATA_DIR, "bolgeler.json")
 KILLER_FILE = os.path.join(DATA_DIR, "gunluk_killer.json")
+
+# Dosya okunamasa bile Safezone kontrolünün asla aksamaması için yedek tanımlar
+TANIMLI_BOLGELER = {
+    "gun_shop": {
+        "name": "Gunshop Etkileşimli Bölge (Safezone)",
+        "postal_codes": ["227"],
+        "bounds": {"min_x": 1095.33, "max_x": 1129.06, "min_z": 3388.36, "max_z": 3411.18}
+    },
+    "police_department": {
+        "name": "Polis Departmanı (Safezone)",
+        "postal_codes": ["310", "316", "317"],
+        "bounds": {"min_x": 2809.82, "max_x": 2946.46, "min_z": 3473.87, "max_z": 3562.42}
+    },
+    "fire_department": {
+        "name": "Fire Departman (Safezone)",
+        "postal_codes": ["228", "229"],
+        "bounds": {"min_x": 1207.34, "max_x": 1358.66, "min_z": 3306.45, "max_z": 3459.93}
+    },
+    "city_spawn": {
+        "name": "City Spawn (Safezone)",
+        "postal_codes": ["210", "211"],
+        "bounds": {"min_x": 1464.1, "max_x": 1616.43, "min_z": 3843.23, "max_z": 3935.5}
+    }
+}
 
 def yukle_json(yol, varsayilan=None):
     if varsayilan is None:
@@ -18,7 +43,8 @@ def yukle_json(yol, varsayilan=None):
     if os.path.exists(yol):
         try:
             with open(yol, "r", encoding="utf-8") as f:
-                return json.load(f)
+                d = json.load(f)
+                return d if d else varsayilan
         except Exception:
             return varsayilan
     return varsayilan
@@ -186,7 +212,9 @@ class LiveRadar(commands.Cog):
                     print(f"[SAFEZONE HATA] {RDM_LOG_KANAL_ID} kanalı bulunamadı: {e}", flush=True)
                     rdm_kanal = None
 
-            bolgeler_data = yukle_json(BOLGELER_FILE, {})
+            bolgeler_data = yukle_json(BOLGELER_FILE, TANIMLI_BOLGELER)
+            if not bolgeler_data:
+                bolgeler_data = TANIMLI_BOLGELER
             kill_tracker = yukle_json(KILLER_FILE, {"islenen_killer": [], "gunluk_safezone_ihlalleri": {}})
             if not hasattr(self, "islenen_killer"):
                 self.islenen_killer = set(kill_tracker.get("islenen_killer", []))
