@@ -31,18 +31,26 @@ def kaydet_json(yol, veri):
     except Exception as e:
         print(f"[DOSYA HATA] {yol} kaydedilemedi: {e}", flush=True)
 
-def bolge_kontrol(x, z, bolgeler):
-    if not isinstance(x, (int, float)) or not isinstance(z, (int, float)):
-        return None
-    for b_id, b_info in bolgeler.items():
-        bounds = b_info.get("bounds", {})
-        min_x = bounds.get("min_x")
-        max_x = bounds.get("max_x")
-        min_z = bounds.get("min_z")
-        max_z = bounds.get("max_z")
-        if min_x is not None and max_x is not None and min_z is not None and max_z is not None:
-            if min_x <= x <= max_x and min_z <= z <= max_z:
+def bolge_kontrol(x, z, postal, bolgeler):
+    # 1. Koordinat ile kontrol (15 birim esneklik payı ile)
+    if isinstance(x, (int, float)) and isinstance(z, (int, float)):
+        for b_id, b_info in bolgeler.items():
+            bounds = b_info.get("bounds", {})
+            min_x = bounds.get("min_x")
+            max_x = bounds.get("max_x")
+            min_z = bounds.get("min_z")
+            max_z = bounds.get("max_z")
+            if min_x is not None and max_x is not None and min_z is not None and max_z is not None:
+                if (min_x - 15) <= x <= (max_x + 15) and (min_z - 15) <= z <= (max_z + 15):
+                    return b_info.get("name", b_id)
+
+    # 2. Posta Kodu ile kontrol (Koordinat sınırın azıcık dışındaysa bile posta kodu eşleşirse yakalar)
+    if postal and postal != "-":
+        for b_id, b_info in bolgeler.items():
+            codes = [str(p) for p in b_info.get("postal_codes", [])]
+            if str(postal) in codes:
                 return b_info.get("name", b_id)
+
     return None
 
 class LiveRadar(commands.Cog):
@@ -51,9 +59,9 @@ class LiveRadar(commands.Cog):
         self.takip_edilen_mesajlar = {}  # {"OyuncuAdı": mesaj_objesi}
         self.son_konumlar = {}           # {"OyuncuAdı": {"x": ..., "z": ..., "postal": ..., "street": ...}}
         
-        # Önceki kayıtlı timestamp varsa oradan devam et, yoksa şu anki zamandan başlat
-        kill_data = yukle_json(KILLER_FILE, {"last_timestamp": int(datetime.now().timestamp()), "gunluk": {}})
-        self.son_kill_timestamp = kill_data.get("last_timestamp", int(datetime.now().timestamp()))
+        # İşlenen kill loglarını benzersiz ID ile takip ediyoruz (Tekrarları ve saat kayması sorunlarını önler)
+        kill_data = yukle_json(KILLER_FILE, {"islenen_killer": [], "gunluk_safezone_ihlalleri": {}})
+        self.islenen_killer = set(kill_data.get("islenen_killer", []))
         self.radar_loop.start()
 
     def cog_unload(self):
@@ -168,30 +176,42 @@ class LiveRadar(commands.Cog):
             except Exception as e:
                 print(f"[RADAR HATA] Çevrimdışı mesajı düzenlenemedi: {e}", flush=True)
 
-        # 3. ER:LC Kill Loglarını ve Safezone / RDM İhlallerini Kontrol Et
+        # 3. ER:LC Kill Loglarını ve Safezone İhlallerini Kontrol Et
         if kill_logs:
             rdm_kanal = self.bot.get_channel(RDM_LOG_KANAL_ID)
             if not rdm_kanal:
                 try:
                     rdm_kanal = await self.bot.fetch_channel(RDM_LOG_KANAL_ID)
-                except Exception:
+                except Exception as e:
+                    print(f"[SAFEZONE HATA] {RDM_LOG_KANAL_ID} kanalı bulunamadı: {e}", flush=True)
                     rdm_kanal = None
 
             bolgeler_data = yukle_json(BOLGELER_FILE, {})
-            kill_tracker = yukle_json(KILLER_FILE, {"last_timestamp": self.son_kill_timestamp, "gunluk": {}})
+            kill_tracker = yukle_json(KILLER_FILE, {"islenen_killer": [], "gunluk_safezone_ihlalleri": {}})
+            if not hasattr(self, "islenen_killer"):
+                self.islenen_killer = set(kill_tracker.get("islenen_killer", []))
 
-            yeni_killer = [k for k in kill_logs if k.get("Timestamp", 0) > self.son_kill_timestamp]
-            yeni_killer.sort(key=lambda x: x.get("Timestamp", 0))
-
+            simdi_unix = int(datetime.now().timestamp())
             bugun = datetime.now(tz_tr).strftime("%Y-%m-%d")
 
-            for k in yeni_killer:
+            for k in kill_logs:
                 ts = k.get("Timestamp", 0)
-                self.son_kill_timestamp = max(self.son_kill_timestamp, ts)
-                kill_tracker["last_timestamp"] = self.son_kill_timestamp
+                killer_raw = str(k.get("Killer", "Bilinmiyor:0"))
+                victim_raw = str(k.get("Killed", "Bilinmiyor:0"))
+                kill_id = f"{killer_raw}_{victim_raw}_{ts}"
 
-                killer_raw = k.get("Killer", "Bilinmiyor:0")
-                victim_raw = k.get("Killed", "Bilinmiyor:0")
+                # Zaten işlendiyse atla
+                if kill_id in self.islenen_killer:
+                    continue
+
+                # 15 dakikadan daha eski olan geçmiş cinayetleri atla (bot yeniden başlarsa eski kayıtları spamlamasın)
+                if ts < (simdi_unix - 900):
+                    self.islenen_killer.add(kill_id)
+                    continue
+
+                # Yeni cinayet yakalandı!
+                self.islenen_killer.add(kill_id)
+                print(f"[KILL LOG YAKALANDI] {killer_raw} -> {victim_raw} (TS: {ts})", flush=True)
 
                 killer_name = killer_raw.split(":")[0] if ":" in killer_raw else killer_raw
                 killer_id = killer_raw.split(":")[1] if ":" in killer_raw else "-"
@@ -210,10 +230,12 @@ class LiveRadar(commands.Cog):
                 street = loc.get("street", "-") if loc else "-"
                 bina = loc.get("building", "-") if loc else "-"
 
-                # Safezone kontrolü (Sadece tanımlı Safezone bölgelerindeki ihlallere odaklanıyoruz)
-                safezone = bolge_kontrol(x_val, z_val, bolgeler_data) if loc else None
+                # Safezone kontrolü (Hem X/Z koordinatları hem de Posta Kodu kontrol edilir)
+                safezone = bolge_kontrol(x_val, z_val, postal, bolgeler_data) if loc else None
+                print(f"[SAFEZONE KONTROL] Katil: {killer_name} | Konum: ({x_val}, {z_val}) | Posta: {postal} | Tespit Edilen Bölge: {safezone}", flush=True)
+
                 if not safezone:
-                    # Olay Safezone içinde değilse loglama yapma, sadece Safezone ihlallerine odaklan
+                    print(f"[SAFEZONE DIŞI] Olay güvenli bölge dışında olduğu için log atlanıyor.", flush=True)
                     continue
 
                 # Günlük Safezone ihlal sayacı
@@ -245,10 +267,12 @@ class LiveRadar(commands.Cog):
                 if rdm_kanal:
                     try:
                         await rdm_kanal.send(embed=embed)
-                        print(f"[SAFEZONE İHLALİ] {killer_name} -> {victim_name} ({safezone}) logu gönderildi. (Tekrar: {ihlal_sayi})", flush=True)
+                        print(f"[SAFEZONE İHLALİ] {killer_name} -> {victim_name} ({safezone}) logu kanala başarıyla gönderildi!", flush=True)
                     except Exception as e:
                         print(f"[SAFEZONE LOG HATA] Kanala mesaj atılamadı! Yetkiyi kontrol et: {e}", flush=True)
 
+            # Son 200 işlenen kill ID'sini sakla
+            kill_tracker["islenen_killer"] = list(self.islenen_killer)[-200:]
             kaydet_json(KILLER_FILE, kill_tracker)
 
 async def setup(bot):
