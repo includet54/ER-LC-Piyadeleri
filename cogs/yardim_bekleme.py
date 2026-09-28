@@ -88,7 +88,7 @@ class DestekAktifView(discord.ui.View):
             return False
         return True
 
-    @discord.ui.button(label="Desteği Bitir", style=discord.ButtonStyle.success, emoji="✅")
+    @discord.ui.button(label="Desteği Bitir", style=discord.ButtonStyle.success, emoji="✅", custom_id="destek_bitir_btn")
     async def bitir_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(DestekBitirModal(self.baslangic_zamani, self.yardim_isteyen_id))
 
@@ -333,5 +333,5 @@ class YardimBekleme(commands.Cog):
 async def setup(bot):
     await bot.add_cog(YardimBekleme(bot))
     # Persistent views: bot restart sonrası aktif destek mesajlarındaki butonlar çalışmaya devam eder
-    bot.add_view(DestekAktifView(yetkili_id=0, yardim_isteyen_id=0, baslangic_zamani=__import__("datetime").datetime.utcnow()))
-    bot.add_view(DevralView(yardim_isteyen_id=0))
+    # bot.add_view(DestekAktifView(...) removed to fix cog loading)
+    # bot.add_view(DevralView(...) removed to fix cog loading
