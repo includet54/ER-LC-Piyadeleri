@@ -1,10 +1,16 @@
+import sys
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import discord
 from discord.ext import commands
 from discord import app_commands
-from config import TOKEN
+from config import TOKEN, GUILD_ID
 import os
-
-GUILD_ID = 1529545898294509589  # <-- DEĞİŞTİRMEN GEREKEN TEK YER: kendi sunucu ID'ni buraya yaz
 
 intents = discord.Intents.all()
 
@@ -15,7 +21,7 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         # __file__ ile göreceli yol — farklı dizinden çalıştırılınca da bozulmaz
         cogs_dir = os.path.join(os.path.dirname(__file__), "cogs")
-        for filename in os.listdir(cogs_dir):
+        for filename in sorted(os.listdir(cogs_dir)):
             if filename.endswith(".py"):
                 try:
                     await self.load_extension(f"cogs.{filename[:-3]}")
@@ -35,7 +41,6 @@ class MyBot(commands.Bot):
         from cogs.cete_sistemi import GangPanelView, AdminGangPanelView
 
         self.add_view(KayitButonView())
-        # OnayView: user_id=None → persistent-mode (custom_id'den okur)
         self.add_view(OnayView(user_id=None))
         self.add_view(TicketPanelView())
         self.add_view(CloseTicketView())
@@ -48,10 +53,13 @@ class MyBot(commands.Bot):
         self.add_view(GangPanelView())
         self.add_view(AdminGangPanelView())
 
-        guild = discord.Object(id=GUILD_ID)
-        self.tree.copy_global_to(guild=guild)
-        synced = await self.tree.sync(guild=guild)
-        print(f"{len(synced)} slash komut senkronize edildi.")
+        try:
+            guild = discord.Object(id=GUILD_ID)
+            self.tree.copy_global_to(guild=guild)
+            synced = await self.tree.sync(guild=guild)
+            print(f"{len(synced)} slash komut senkronize edildi.")
+        except Exception as e:
+            print(f"Komut senkronizasyon hatası: {e}")
 
 bot = MyBot()
 
@@ -78,7 +86,13 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
             await interaction.followup.send(msg, ephemeral=True)
         else:
             await interaction.response.send_message(msg, ephemeral=True)
-    except:
+    except Exception:
         pass
 
-bot.run(TOKEN)
+if __name__ == "__main__":
+    if not TOKEN:
+        print("❌ HATA: Discord Bot TOKEN tanımlı değil!")
+        print("Lütfen Railway panelinden veya .env dosyasından TOKEN değişkenini tanımlayın.")
+        sys.exit(1)
+        
+    bot.run(TOKEN)

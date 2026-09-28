@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord import app_commands
 import json
 import os
-import re
 import random
 from datetime import datetime, timedelta
 
@@ -27,12 +26,27 @@ VALID_PARSELLER = ["700", "701", "702", "703", "1104", "1108", "1101", "601", "6
 def load_json(filepath):
     if not os.path.exists(filepath):
         return {}
-    with open(filepath, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 def save_json(filepath, data):
+    os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+
+async def get_or_fetch_channel(client_or_guild, channel_id: int):
+    if not channel_id:
+        return None
+    ch = client_or_guild.get_channel(channel_id)
+    if ch:
+        return ch
+    try:
+        return await client_or_guild.fetch_channel(channel_id)
+    except Exception:
+        return None
 
 def hex_to_discord_color(hex_str):
     hex_str = hex_str.strip().lstrip('#')
@@ -61,12 +75,326 @@ class AdminRejectModal(discord.ui.Modal, title="Çete Reddetme Sebebi"):
         self.request_id = request_id
 
     async def on_submit(self, interaction: discord.Interaction):
+        pending = load_json(PENDING_FILE)
+        if self.request_id not in pending:
+            return await interaction.response.send_message("Talebin süresi dolmuş veya zaten işlem yapılmış.", ephemeral=True)
+        
+        req = pending[self.request_id]
+        boss_id = req["boss"]
+        
+        # Log mesajını güncelle
+        try:
+            log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+            msg = await log_channel.fetch_message(req["log_msg_id"])
+            embed = msg.embeds[0]
+            embed.color = discord.Color.red()
+            embed.title = f"❌ REDDEDİLDİ: {req['name']}"
+            embed.add_field(name="Reddeden Yetkili", value=interaction.user.mention, inline=False)
+            embed.add_field(name="Sebep", value=self.sebep.value, inline=False)
+            await msg.edit(embed=embed, view=None)
+        except:
+            pass
+
+        # Boss'a bildir
+        try:
+            komut_kanal = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
+            await komut_kanal.send(f"❌ <@{boss_id}>, **{req['name']}** adlı çete kurma talebiniz yetkililer tarafından reddedildi.\n**Sebep:** {self.sebep.value}")
+        except:
+            pass
+
+        del pending[self.request_id]
+        save_json(PENDING_FILE, pending)
+        await interaction.response.send_message("Talep başarıyla reddedildi.", ephemeral=True)
+
+
+class AdminApprovalView(discord.ui.View):
+    def __init__(self, request_id: str):
+        super().__init__(timeout=None)
+        self.request_id = request_id
+
+    @discord.ui.button(label="Onayla", style=discord.ButtonStyle.green, custom_id="admin_gang_approve")
+    async def approve_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        pending = load_json(PENDING_FILE)
+        if self.request_id not in pending:
+            return await interaction.response.send_message("Bu talep artık geçerli değil.", ephemeral=True)
+        
+        req = pending[self.request_id]
+        boss_id = int(req["boss"])
+        guild = interaction.guild
+        
+        # Kabul edenleri al
+        accepted_members = []
+        for uid_str, status in req["invited"].items():
+            if status == "accepted":
+                accepted_members.append(int(uid_str))
+        
+        await interaction.response.defer()
+
+        # 1. Rolü Oluştur
+        colors_data = load_json(COLORS_FILE)
+        hex_color = "#ffffff"
+        for c in colors_data:
+            if str(c["ID"]) == str(req["color_id"]):
+                hex_color = c["Hex (Web RGB)"]
+                break
+        
+        new_role = await guild.create_role(
+            name=req["name"],
+            color=hex_to_discord_color(hex_color),
+            reason="Çete sistemi otomatik kurulum"
+        )
+        
+        boss_role = guild.get_role(BOSS_ROLE_ID)
+
+        # 2. Üyelere Rolleri Ver
+        members_to_add = [boss_id] + accepted_members
+        for uid in members_to_add:
+            member = guild.get_member(uid)
+            if not member:
+                # Üye sunucudan ayrılmış; atlıyoruz
+                continue
+            await member.add_roles(new_role)
+            if uid == boss_id and boss_role:
+                await member.add_roles(boss_role)
+        
+        # 3. Kategorileri Bul / Oluştur
+        illegal_role = guild.get_role(1539249508314259567)
+        base_cat_overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False)
+        }
+        if illegal_role:
+            base_cat_overwrites[illegal_role] = discord.PermissionOverwrite(view_channel=True, send_messages=False, connect=False)
+            
+        text_category = discord.utils.get(guild.categories, name="Çeteler Sınırsız Ticket")
+        if not text_category:
+            text_category = await guild.create_category("Çeteler Sınırsız Ticket", overwrites=base_cat_overwrites)
+            
+        voice_category = discord.utils.get(guild.categories, name="Çete Ses kanalları")
+        if not voice_category:
+            voice_category = await guild.create_category("Çete Ses kanalları", overwrites=base_cat_overwrites)
+
+        # İzinler
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(view_channel=False),
+            new_role: discord.PermissionOverwrite(view_channel=True, send_messages=True, connect=True)
+        }
+        if illegal_role:
+            overwrites[illegal_role] = discord.PermissionOverwrite(view_channel=True, send_messages=False, connect=False)
+
+        # 4. Kanalları Oluştur
+        text_channel_name = f"{req['name'].replace(' ', '-').lower()}_sınırsız_ticket"
+        text_channel = await guild.create_text_channel(text_channel_name, category=text_category, overwrites=overwrites)
+        
+        freq_code = random.randint(100, 999)
+        voice_channel_name = f"{req['name']} 📻{freq_code}"
+        voice_channel = await guild.create_voice_channel(voice_channel_name, category=voice_category, overwrites=overwrites)
+
+        # 5. Mesaj Gönder
+        info_embed = discord.Embed(title=f"🛡️ {req['name']} Çetesi Kuruldu!", color=new_role.color)
+        info_embed.add_field(name="Boss", value=f"<@{boss_id}>", inline=False)
+        info_embed.add_field(name="Üyeler", value=" ".join([f"<@{u}>" for u in accepted_members]), inline=False)
+        info_embed.add_field(name="Parsel", value=req["parsel"], inline=False)
+        info_embed.add_field(name="Hikaye", value=req["story"], inline=False)
+        info_embed.set_footer(text="Bu mesaj çeteye yeni üyeler eklendikçe güncellenecektir.")
+        info_msg = await text_channel.send(embed=info_embed)
+
+        # 6. JSON'a Kaydet
+        cete_data = load_json(DATA_FILE)
+        gang_id = str(new_role.id)
+        cete_data[gang_id] = {
+            "name": req["name"],
+            "color_id": req["color_id"],
+            "boss": str(boss_id),
+            "underbosses": [],
+            "members": [str(u) for u in accepted_members],
+            "parsel": req["parsel"],
+            "text_channel": str(text_channel.id),
+            "voice_channel": str(voice_channel.id),
+            "role_id": str(new_role.id),
+            "info_msg_id": str(info_msg.id)
+        }
+        save_json(DATA_FILE, cete_data)
+        
+        # 7. Log Mesajını Güncelle
+        try:
+            log_channel = guild.get_channel(LOG_CHANNEL_ID)
+            msg = await log_channel.fetch_message(req["log_msg_id"])
+            embed = msg.embeds[0]
+            embed.color = discord.Color.green()
+            embed.title = f"✅ ONAYLANDI: {req['name']}"
+            embed.add_field(name="Onaylayan Yetkili", value=interaction.user.mention, inline=False)
+            await msg.edit(embed=embed, view=None)
+        except:
+            pass
+
+        del pending[self.request_id]
+        save_json(PENDING_FILE, pending)
+
+        komut_kanal = guild.get_channel(CETE_BILDIRIM_CHANNEL_ID)
+        await komut_kanal.send(f"🎉 <@{boss_id}>, **{req['name']}** çeteniz başarıyla onaylandı ve kuruldu! Kanallarınıza göz atabilirsiniz.", delete_after=15)
+        await update_admin_gang_panel(interaction.client)
+
+    @discord.ui.button(label="Reddet", style=discord.ButtonStyle.red, custom_id="admin_gang_reject")
+    async def reject_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(AdminRejectModal(self.request_id))
+
+
+class GangInviteView(discord.ui.View):
+    def __init__(self, request_id: str, invited_user_id: str):
+        super().__init__(timeout=None)
+        self.request_id = request_id
+        self.invited_user_id = str(invited_user_id)
+
+    async def handle_response(self, interaction: discord.Interaction, accepted: bool):
+        if str(interaction.user.id) != self.invited_user_id:
+            return await interaction.response.send_message("Bu davet sizin için değil!", ephemeral=True)
+            
+        pending = load_json(PENDING_FILE)
+        if self.request_id not in pending:
+            return await interaction.response.send_message("Bu çete talebi artık geçerli değil (zaman aşımı veya onaylandı).", ephemeral=True)
+            
+        req = pending[self.request_id]
+        if req["invited"].get(self.invited_user_id) != "pending":
+            return await interaction.response.send_message("Bu davete zaten yanıt verdiniz.", ephemeral=True)
+            
+        req["invited"][self.invited_user_id] = "accepted" if accepted else "rejected"
+        save_json(PENDING_FILE, pending)
+        
+        try:
+            await interaction.message.delete()
+        except:
+            pass
+        await interaction.response.send_message(f"Yanıtınız kaydedildi: {'✅ Kabul Edildi' if accepted else '❌ Reddedildi'}", ephemeral=True)
+        
+        await self.update_log_message(interaction, req)
+
+    @discord.ui.button(label="Onaylıyorum", style=discord.ButtonStyle.green, custom_id="invite_accept")
+    async def accept_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_response(interaction, True)
+
+    @discord.ui.button(label="Onaylamıyorum", style=discord.ButtonStyle.red, custom_id="invite_reject")
+    async def reject_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_response(interaction, False)
+
+    async def update_log_message(self, interaction, req):
+        accepted_count = sum(1 for status in req["invited"].values() if status == "accepted")
+        rejected_count = sum(1 for status in req["invited"].values() if status == "rejected")
+        total_invited = len(req["invited"])
+        
+        try:
+            log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+            msg = await log_channel.fetch_message(req["log_msg_id"])
+            
+            embed = discord.Embed(title=f"Çete Başvurusu: {req['name']}", color=discord.Color.yellow())
+            if accepted_count >= 3:
+                embed.color = discord.Color.default() # Beyaz
+            
+            embed.add_field(name="Boss", value=f"<@{req['boss']}>", inline=False)
+            embed.add_field(name="Çete Rengi (ID)", value=req['color_id'], inline=True)
+            embed.add_field(name="Parsel", value=req['parsel'], inline=True)
+            embed.add_field(name="Davet Edilen", value=str(total_invited), inline=True)
+            embed.add_field(name="Onaylayan", value=str(accepted_count), inline=True)
+            embed.add_field(name="Reddeden", value=str(rejected_count), inline=True)
+            
+            if accepted_count >= 3:
+                embed.description = "✅ Yeterli onaya ulaşıldı. Yetkili onayı bekleniyor."
+                view = AdminApprovalView(self.request_id)
+                await msg.edit(embed=embed, view=view)
+            elif (total_invited - rejected_count) < 3:
+                # İptal et
+                embed.color = discord.Color.red()
+                embed.description = "❌ Yeterli kişi onaylamadığı için sistem tarafından otomatik reddedildi."
+                await msg.edit(embed=embed, view=None)
+                
+                pending = load_json(PENDING_FILE)
+                del pending[self.request_id]
+                save_json(PENDING_FILE, pending)
+                
+                komut_kanal = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
+                await komut_kanal.send(f"❌ <@{req['boss']}>, **{req['name']}** çeteniz için yeterli onay alınamadığından başvuru iptal edildi.")
+            else:
+                embed.description = "⏳ Üyelerin onayı bekleniyor..."
+                await msg.edit(embed=embed)
+        except Exception as e:
+            print(f"Log message update error: {e}")
+
+class GangMemberSelectView(discord.ui.View):
+    def __init__(self, cete_adi, cete_rengi, parsel_kodu, hikaye):
+        super().__init__(timeout=300)
+        self.cete_adi = cete_adi
+        self.cete_rengi = cete_rengi
+        self.parsel_kodu = parsel_kodu
+        self.hikaye = hikaye
+
+    @discord.ui.select(cls=discord.ui.UserSelect, placeholder="Başlangıç Üyelerini Seç (En az 3)", min_values=3, max_values=15)
+    async def select_members(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
+        unique_members = []
+        for user in select.values:
+            if user.id == interaction.user.id:
+                return await interaction.response.send_message("❌ Kendinizi başlangıç üyesi olarak seçemezsiniz!", ephemeral=True)
+            if user.bot:
+                return await interaction.response.send_message("❌ Botları çetenize ekleyemezsiniz!", ephemeral=True)
+            if is_user_in_any_gang(user.id):
+                return await interaction.response.send_message(f"❌ Seçtiğiniz üyelerden biri (<@{user.id}>) zaten bir çetede!", ephemeral=True)
+            unique_members.append(str(user.id))
+            
+        if len(unique_members) < 3:
+            return await interaction.response.send_message("❌ Lütfen en az 3 geçerli kişi seçin.", ephemeral=True)
+            
+        request_id = str(interaction.id)
+        pending_data = load_json(PENDING_FILE)
+        
+        log_channel = interaction.client.get_channel(LOG_CHANNEL_ID)
+        if not log_channel:
+            return await interaction.response.send_message("❌ Log kanalı bulunamadı. Lütfen yetkililere bildirin.", ephemeral=True)
+
+        embed = discord.Embed(title=f"Çete Başvurusu: {self.cete_adi}", description="⏳ Üyelerin onayı bekleniyor...", color=discord.Color.yellow())
+        embed.add_field(name="Boss", value=f"<@{interaction.user.id}>", inline=False)
+        embed.add_field(name="Çete Rengi (ID)", value=self.cete_rengi, inline=True)
+        embed.add_field(name="Parsel", value=self.parsel_kodu, inline=True)
+        embed.add_field(name="Davet Edilen", value=str(len(unique_members)), inline=True)
+        embed.add_field(name="Onaylayan", value="0", inline=True)
+        embed.add_field(name="Reddeden", value="0", inline=True)
+        
+        log_msg = await log_channel.send(embed=embed)
+        
+        pending_data[request_id] = {
+            "name": self.cete_adi,
+            "color_id": self.cete_rengi,
+            "parsel": self.parsel_kodu,
+            "boss": str(interaction.user.id),
+            "story": self.hikaye,
+            "log_msg_id": log_msg.id,
+            "invited": {uid: "pending" for uid in unique_members},
+            "expires_at": (datetime.utcnow() + timedelta(hours=24)).isoformat()
+        }
+        save_json(PENDING_FILE, pending_data)
+        
+        bot_komut = interaction.client.get_channel(CETE_BILDIRIM_CHANNEL_ID)
+        for uid in unique_members:
+            view = GangInviteView(request_id, uid)
+            await bot_komut.send(content=f"🔔 Merhaba <@{uid}>! **{self.cete_adi}** çetesi lideri <@{interaction.user.id}> sizi çetesine başlangıç üyesi olarak davet ediyor. Katılmayı kabul ediyor musunuz?", view=view)
+            
+        for child in self.children:
+            child.disabled = True
+        await interaction.response.edit_message(content="✅ Başvuru süreci başlatıldı! Seçtiğiniz üyelere davetiyeler gönderildi.", view=self)
+
+
+class GangCreateModal(discord.ui.Modal, title="Yeni Çete Oluştur"):
+    cete_adi = discord.ui.TextInput(label="Çetenizin Adı", max_length=50, required=True)
+    cete_rengi = discord.ui.TextInput(label="Çetenizin Rengi (Sayı ID giriniz)", max_length=5, placeholder="Örn: 27", required=True)
+    parsel_kodu = discord.ui.TextInput(label="Çetenizin Parsel Kodu", max_length=10, placeholder="Örn: 700", required=True)
+    hikaye = discord.ui.TextInput(label="Oluşma Hikayesi", style=discord.TextStyle.paragraph, placeholder="Kısa bir hikaye...", required=True)
+
+    async def on_submit(self, interaction: discord.Interaction):
         try:
             if is_user_in_any_gang(interaction.user.id):
                 return await interaction.response.send_message("❌ Zaten bir çetedesiniz veya başka bir çetenin boss'usunuz!", ephemeral=True)
             
-            if self.parsel_kodu.value.strip() not in VALID_PARSELLER:
-                            return await interaction.response.send_message("❌ Geçersiz parsel kodu! Geçerli kodlar: 700, 701, 702, 703, 1104, 1108, 1101, 601, 602, 600, 805, 807, 809, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 403, 404, 405, 406, 407, 409, 410, 411", ephemeral=True)
+            parsel = self.parsel_kodu.value.strip()
+            if parsel not in VALID_PARSELLER:
+                parsel_listesi = ", ".join(VALID_PARSELLER)
+                return await interaction.response.send_message(f"❌ Geçersiz parsel kodu! Geçerli kodlar: {parsel_listesi}", ephemeral=True)
             
             colors_data = load_json(COLORS_FILE)
             valid_color = False
@@ -77,7 +405,7 @@ class AdminRejectModal(discord.ui.Modal, title="Çete Reddetme Sebebi"):
                 normalized_color_id = user_input_color
                 
             for c in colors_data:
-                if str(c.get("ID", "")) == normalized_color_id:
+                if str(c.get("ID", "")).strip() == normalized_color_id:
                     valid_color = True
                     user_input_color = normalized_color_id 
                     break
@@ -88,20 +416,21 @@ class AdminRejectModal(discord.ui.Modal, title="Çete Reddetme Sebebi"):
             view = GangMemberSelectView(
                 cete_adi=self.cete_adi.value.strip(),
                 cete_rengi=user_input_color,
-                parsel_kodu=self.parsel_kodu.value.strip(),
+                parsel_kodu=parsel,
                 hikaye=self.hikaye.value.strip()
             )
             
             await interaction.response.send_message("Lütfen çetenizin başlangıç üyelerini (En az 3 kişi) aşağıdaki menüden seçiniz:", view=view, ephemeral=True)
         except Exception as e:
             import traceback
-            tb = traceback.format_exc()
-            print("GANG CREATE MODAL ERROR:", tb)
+            print("GANG CREATE MODAL ERROR:", traceback.format_exc())
             try:
-                await interaction.response.send_message(f"Sistem Hatası: {str(e)}", ephemeral=True)
-            except:
+                if interaction.response.is_done():
+                    await interaction.followup.send(f"❌ Sistem Hatası: {e}", ephemeral=True)
+                else:
+                    await interaction.response.send_message(f"❌ Sistem Hatası: {e}", ephemeral=True)
+            except Exception:
                 pass
-
 class GangPanelView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -684,10 +1013,10 @@ class CeteSistemi(commands.Cog):
         )
         
         try:
-            file1 = discord.File("assets/cete_logo_kucuk.jpg", filename="kucuk.jpg")
+            file1 = discord.File(os.path.join(BASE_DIR, "assets", "cete_logo_kucuk.jpg"), filename="kucuk.jpg")
             embed.set_thumbnail(url="attachment://kucuk.jpg")
             
-            file2 = discord.File("assets/cete_banner.jpg", filename="banner.jpg")
+            file2 = discord.File(os.path.join(BASE_DIR, "assets", "cete_banner.jpg"), filename="banner.jpg")
             embed.set_image(url="attachment://banner.jpg")
             
             await channel.send(embed=embed, files=[file1, file2], view=GangPanelView())

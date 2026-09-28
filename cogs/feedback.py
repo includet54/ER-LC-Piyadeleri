@@ -16,11 +16,11 @@ YETKILI_ROL_IDLERI = [
     1537934087166369812,  # Yönetim ekibi
 ]
 
-DATA_DIR = "data"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 FEEDBACK_FILE = os.path.join(DATA_DIR, "feedback_data.json")
 
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 def load_feedback():
     if not os.path.exists(FEEDBACK_FILE):
@@ -59,7 +59,7 @@ class FeedbackCog(commands.Cog):
             return await interaction.response.send_message("❌ Kendinize geri bildirim veremezsiniz!", ephemeral=True)
 
         if not hedef_yetkili_mi(yetkili):
-            return await interaction.response.send_message(f"❌ Seçtiğiniz kişi yetkili kadrosunda değil. Sadece geçerli yetkilileri değerlendirebilirsiniz.", ephemeral=True)
+            return await interaction.response.send_message("❌ Seçtiğiniz kişi yetkili kadrosunda değil. Sadece geçerli yetkilileri değerlendirebilirsiniz.", ephemeral=True)
             
         if puan < 1 or puan > 5:
             return await interaction.response.send_message("❌ Puanınız 1 ile 5 arasında olmalıdır!", ephemeral=True)

@@ -5,7 +5,7 @@ import json
 import os
 import random
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 # ==================== KANAL & ROL ID'LERİ ====================
 UYARILAR_KANAL_ID = 1532828434739368149   # Uyarı kayıtlarının gönderileceği kanal
@@ -88,12 +88,12 @@ YETKILI_MADDELER = {
 }
 
 # ==================== VERİ YÖNETİMİ ====================
-DATA_DIR = "data"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 UYARI_DATA_FILE = os.path.join(DATA_DIR, "uyari_data.json")
 SICIL_DATA_FILE = os.path.join(DATA_DIR, "sicil_data.json")
 
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
 
 def load_data(filepath):
     if not os.path.exists(filepath):
@@ -408,7 +408,6 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
         yeni_puan = user_data["toplam_puan"]
         user_data["son_uyari_tarihi"] = simdi.isoformat()
         
-        eski_kademe = user_data["kademe"]
         yeni_kademe = hesapla_kademe(yeni_puan)
         user_data["kademe"] = yeni_kademe
         

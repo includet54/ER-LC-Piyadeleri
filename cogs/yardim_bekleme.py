@@ -13,19 +13,26 @@ ONEMLI_LOG_KANALI = 1532829734742786168
 ONLY_MOD_KANALI = 1532828404347437287
 DESTEK_BEKLEME_YETKILISI_ROL = 1553473785527537765
 
-DATA_FILE = "data/mod_stats.json"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+DATA_FILE = os.path.join(DATA_DIR, "mod_stats.json")
+DESTEK_ID_FILE = os.path.join(DATA_DIR, "destek_id.json")
 GUNLUK_HEDEF_SANIYE = 5 * 60 * 60  # 5 saat
 # ============================
 
 def load_stats():
-    if not os.path.exists("data"): os.makedirs("data")
+    os.makedirs(DATA_DIR, exist_ok=True)
     if not os.path.exists(DATA_FILE): return {}
-    with open(DATA_FILE, "r") as f:
-        try: return json.load(f)
-        except: return {}
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 def save_stats(data):
-    with open(DATA_FILE, "w") as f: json.dump(data, f, indent=4)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 def update_mod_stat(mod_id, key, amount=1):
     data = load_stats()
@@ -126,7 +133,7 @@ class DevralView(discord.ui.View):
         try:
             await yardim_isteyen.move_to(yardim_kanal)
             await yardim_isteyen.edit(mute=False)
-        except Exception as e:
+        except Exception:
             await interaction.followup.send("❌ Kullanıcı odaya çekilirken hata oluştu. (Belki sesten çıkmıştır)", ephemeral=True)
             return
 
@@ -200,21 +207,19 @@ class YardimBekleme(commands.Cog):
                 break
                 
         def get_next_destek_id():
-            id_file = "data/destek_id.json"
-            if not os.path.exists("data"):
-                os.makedirs("data")
-            if not os.path.exists(id_file):
+            os.makedirs(DATA_DIR, exist_ok=True)
+            if not os.path.exists(DESTEK_ID_FILE):
                 last_id = 0
             else:
                 try:
-                    with open(id_file, "r") as f:
+                    with open(DESTEK_ID_FILE, "r", encoding="utf-8") as f:
                         data = json.load(f)
                         last_id = data.get("last_id", 0)
-                except:
+                except Exception:
                     last_id = 0
             new_id = last_id + 1
-            with open(id_file, "w") as f:
-                json.dump({"last_id": new_id}, f)
+            with open(DESTEK_ID_FILE, "w", encoding="utf-8") as f:
+                json.dump({"last_id": new_id}, f, indent=4, ensure_ascii=False)
             return f"PRP-{new_id:05d}"
             
         destek_id = get_next_destek_id()

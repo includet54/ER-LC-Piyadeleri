@@ -157,7 +157,7 @@ class KufurEngel(commands.Cog):
         icerik = message.content[:1024] or "*[Boş mesaj / ek içerik]*"
 
         embed = discord.Embed(
-            title=f"🚨 Uygunsuz İçerik Tespit Edildi",
+            title="🚨 Uygunsuz İçerik Tespit Edildi",
             color=discord.Color.brand_red(),
         )
         embed.set_author(

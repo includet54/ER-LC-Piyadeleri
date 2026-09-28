@@ -1,3 +1,4 @@
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -215,10 +216,21 @@ class _OnaylaButon(discord.ui.Button):
         if not yetkili_mi(interaction.user):
             return await interaction.response.send_message("Bu işlemi yapma yetkin yok.", ephemeral=True)
 
-        # user_id custom_id'den okunuyor — footer parse edilmiyor
+        hedef_id = None
         try:
-            hedef_id = int(self.custom_id.split("_")[-1])
-        except (ValueError, IndexError):
+            parts = self.custom_id.split("_")
+            if len(parts) > 2 and parts[-1].isdigit() and int(parts[-1]) != 0:
+                hedef_id = int(parts[-1])
+        except Exception:
+            pass
+
+        if not hedef_id and interaction.message and interaction.message.embeds:
+            footer = interaction.message.embeds[0].footer.text or ""
+            match = re.search(r"\d+", footer)
+            if match:
+                hedef_id = int(match.group())
+
+        if not hedef_id:
             return await interaction.response.send_message("Kullanıcı ID okunamadı.", ephemeral=True)
 
         embed = interaction.message.embeds[0]
@@ -311,9 +323,21 @@ class _ReddetButon(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         if not yetkili_mi(interaction.user):
             return await interaction.response.send_message("Bu işlemi yapma yetkin yok.", ephemeral=True)
+        hedef_id = None
         try:
-            hedef_id = int(self.custom_id.split("_")[-1])
-        except (ValueError, IndexError):
+            parts = self.custom_id.split("_")
+            if len(parts) > 2 and parts[-1].isdigit() and int(parts[-1]) != 0:
+                hedef_id = int(parts[-1])
+        except Exception:
+            pass
+
+        if not hedef_id and interaction.message and interaction.message.embeds:
+            footer = interaction.message.embeds[0].footer.text or ""
+            match = re.search(r"\d+", footer)
+            if match:
+                hedef_id = int(match.group())
+
+        if not hedef_id:
             return await interaction.response.send_message("Kullanıcı ID okunamadı.", ephemeral=True)
         await interaction.response.send_modal(RedSebepModal(hedef_id, interaction.message))
 
@@ -345,11 +369,15 @@ class Registration(commands.Cog):
         )
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         
-        file = discord.File(os.path.join(os.path.dirname(__file__), "..", "assets", "yeni_banner.png"), filename="yeni_banner.png")
-        embed.set_image(url="attachment://yeni_banner.png")
-            
-        await interaction.channel.send(embed=embed, file=file, view=KayitButonView())
-        await interaction.response.send_message("Panel gönderildi.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        banner_path = os.path.join(os.path.dirname(__file__), "..", "assets", "yeni_banner.png")
+        if os.path.exists(banner_path):
+            file = discord.File(banner_path, filename="yeni_banner.png")
+            embed.set_image(url="attachment://yeni_banner.png")
+            await interaction.channel.send(embed=embed, file=file, view=KayitButonView())
+        else:
+            await interaction.channel.send(embed=embed, view=KayitButonView())
+        await interaction.followup.send("Panel başarıyla gönderildi.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Registration(bot))

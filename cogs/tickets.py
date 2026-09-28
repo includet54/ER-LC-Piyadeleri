@@ -1,3 +1,4 @@
+import os
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -140,11 +141,15 @@ class Tickets(commands.Cog):
         )
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         
-        file = discord.File(os.path.join(os.path.dirname(__file__), "..", "assets", "yeni_banner.png"), filename="yeni_banner.png")
-        embed.set_image(url="attachment://yeni_banner.png")
-            
-        await interaction.channel.send(embed=embed, file=file, view=TicketPanelView())
-        await interaction.response.send_message("Panel gönderildi.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+        banner_path = os.path.join(os.path.dirname(__file__), "..", "assets", "yeni_banner.png")
+        if os.path.exists(banner_path):
+            file = discord.File(banner_path, filename="yeni_banner.png")
+            embed.set_image(url="attachment://yeni_banner.png")
+            await interaction.channel.send(embed=embed, file=file, view=TicketPanelView())
+        else:
+            await interaction.channel.send(embed=embed, view=TicketPanelView())
+        await interaction.followup.send("Panel başarıyla gönderildi.", ephemeral=True)
 
     @app_commands.command(name="ekle", description="Mevcut bilete bir kullanıcı ekler.")
     @app_commands.describe(

@@ -263,7 +263,7 @@ class LiveRadar(commands.Cog):
                 print(f"[SAFEZONE KONTROL] Katil: {killer_name} | Konum: ({x_val}, {z_val}) | Posta: {postal} | Tespit Edilen Bölge: {safezone}", flush=True)
 
                 if not safezone:
-                    print(f"[SAFEZONE DIŞI] Olay güvenli bölge dışında olduğu için log atlanıyor.", flush=True)
+                    print("[SAFEZONE DIŞI] Olay güvenli bölge dışında olduğu için log atlanıyor.", flush=True)
                     continue
 
                 # Günlük Safezone ihlal sayacı

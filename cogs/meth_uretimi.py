@@ -332,7 +332,6 @@ class MethUretimi(commands.Cog):
     @app_commands.command(name="madde-uret", description="Karanlık laboratuvarında üretime başla. Riskli ve tehlikelidir!")
     async def madde_uret(self, interaction: discord.Interaction):
         # Cooldown check
-        import time
         now = time.time()
         cooldown_suresi = 900 # 15 dakika = 900 saniye
         son_kullanim = self.cooldowns.get(interaction.user.id, 0)
