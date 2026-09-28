@@ -114,6 +114,9 @@ class AdminApprovalView(discord.ui.View):
 
     @discord.ui.button(label="Onayla", style=discord.ButtonStyle.green, custom_id="admin_gang_approve")
     async def approve_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if getattr(self, "processing", False):
+            return await interaction.response.send_message("Şu anda işleniyor, lütfen bekleyin...", ephemeral=True)
+        self.processing = True
         pending = load_json(PENDING_FILE)
         if self.request_id not in pending:
             return await interaction.response.send_message("Bu talep artık geçerli değil.", ephemeral=True)
@@ -194,7 +197,8 @@ class AdminApprovalView(discord.ui.View):
         info_embed.add_field(name="Boss", value=f"<@{boss_id}>", inline=False)
         info_embed.add_field(name="Üyeler", value=" ".join([f"<@{u}>" for u in accepted_members]), inline=False)
         info_embed.add_field(name="Parsel", value=req["parsel"], inline=False)
-        info_embed.add_field(name="Hikaye", value=req["story"], inline=False)
+        story_text = req["story"][:1021] + "..." if len(req["story"]) > 1024 else req["story"]
+        info_embed.add_field(name="Hikaye", value=story_text, inline=False)
         info_embed.set_footer(text="Bu mesaj çeteye yeni üyeler eklendikçe güncellenecektir.")
         info_msg = await text_channel.send(embed=info_embed)
 
