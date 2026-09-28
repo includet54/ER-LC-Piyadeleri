@@ -22,7 +22,7 @@ GANG_PANEL_CHANNEL_ID = 1551345902868889671
 ADMIN_GANG_PANEL_CHANNEL_ID = 1551996894597750897
 GANG_WARNING_CHANNEL_ID = 1551369739878539364
 
-VALID_PARSELLER = ["700","701","702","703","704","705","706","709","504","505","506","1103","1109","1112"]
+VALID_PARSELLER = ["700", "701", "702", "703", "1104", "1108", "1101", "601", "602", "600", "805", "807", "809", "1003", "1004", "1005", "1006", "1007", "1008", "1009", "403", "404", "405", "406", "407", "409", "410", "411"]
 
 def load_json(filepath):
     if not os.path.exists(filepath):
@@ -377,7 +377,7 @@ class GangCreateModal(discord.ui.Modal, title="Yeni Çete Oluştur"):
             return await interaction.response.send_message("❌ Zaten bir çetedesiniz veya başka bir çetenin boss'usunuz!", ephemeral=True)
         
         if self.parsel_kodu.value.strip() not in VALID_PARSELLER:
-            return await interaction.response.send_message(f"❌ Geçersiz parsel kodu! Geçerli kodlar: {', '.join(VALID_PARSELLER)}", ephemeral=True)
+                        return await interaction.response.send_message("❌ Geçersiz parsel kodu! Geçerli kodlar: 700, 701, 702, 703, 1104, 1108, 1101, 601, 602, 600, 805, 807, 809, 1003, 1004, 1005, 1006, 1007, 1008, 1009 ve .PNG içerisindeki yazılı parsel kodları.", ephemeral=True)
         
         colors_data = load_json(COLORS_FILE)
         valid_color = False

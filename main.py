@@ -27,7 +27,6 @@ class MyBot(commands.Bot):
         # Bot yeniden başlasa bile eski panellerdeki butonlar çalışır.
         from cogs.registration import KayitButonView, OnayView
         from cogs.tickets import TicketPanelView, CloseTicketView
-        from cogs.market import MarketView, TotemView
         from cogs.vs_talep import VSSetupView, VSChannelView
         from cogs.uyari_sistemi import UyariPanel
         from cogs.rol_secim import RolSecimView
@@ -40,8 +39,6 @@ class MyBot(commands.Bot):
         self.add_view(OnayView(user_id=None))
         self.add_view(TicketPanelView())
         self.add_view(CloseTicketView())
-        self.add_view(MarketView())
-        self.add_view(TotemView())
         self.add_view(UyariPanel())
         self.add_view(VSSetupView())
         self.add_view(VSChannelView())
