@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, tasks
 import aiohttp
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 RADAR_KANAL_ID = 1553721461389266974
 
@@ -75,8 +75,11 @@ class LiveRadar(commands.Cog):
             }
 
         # 1. Oyuncuların mesajlarını oluştur veya güncelle
+        tz_tr = timezone(timedelta(hours=3))
         for isim, loc in aktif_oyuncular.items():
-            zaman = datetime.now().strftime("%H:%M:%S")
+            now_tr = datetime.now(tz_tr)
+            zaman = now_tr.strftime("%H:%M:%S")
+            ts_unix = int(now_tr.timestamp())
             
             embed = discord.Embed(
                 title=f"📡 Radar: {isim}",
@@ -85,7 +88,7 @@ class LiveRadar(commands.Cog):
                     f"X: `{loc['x']}` | Z: `{loc['z']}`" + (f" | Y: `{loc['y']}`" if loc['y'] != "-" else "") + "\n\n"
                     f"📮 **Posta Kodu:** `{loc['postal']}`\n"
                     f"🛣️ **Cadde / Sokak:** `{loc['street']}` (No: `{loc['building']}`)\n\n"
-                    f"🔄 *Son Güncelleme: {zaman}*"
+                    f"🔄 *Son Güncelleme: {zaman} (<t:{ts_unix}:R>)*"
                 ),
                 color=discord.Color.blue()
             )
