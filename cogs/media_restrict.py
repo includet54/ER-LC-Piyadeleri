@@ -2,14 +2,13 @@ import discord
 from discord.ext import commands
 
 # ==================== AYARLAR ====================
-ILLEGAL_MEDYA = 1541219393374130269
-MEDYA = 1532829033564213298
+HEDEF_MEDYA_KANALI = 1554924097723699270
 
 KURUCU_ROLE = 1529546007635824680
 UST_YONETIM_ROLE = 1539167256246747186
 
 ALLOWED_ROLES = [KURUCU_ROLE, UST_YONETIM_ROLE]
-MEDIA_CHANNELS = [ILLEGAL_MEDYA, MEDYA]
+MEDIA_CHANNELS = [HEDEF_MEDYA_KANALI]
 # =================================================
 
 class MediaRestrict(commands.Cog):

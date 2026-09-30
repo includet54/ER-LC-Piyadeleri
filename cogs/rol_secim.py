@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 
 # ==================== AYARLAR ====================
-HEDEF_KANAL_ID = 1532829702274682890
+HEDEF_KANAL_ID = 1554924155927924776
 
 # Rol ID'leri
 ROLE_DRIVER = 1534736940279005326
@@ -118,6 +118,12 @@ class RolSecim(commands.Cog):
             return await interaction.response.send_message("❌ Bu komutu sadece **Kurucu** kullanabilir!", ephemeral=True)
 
         kanal = self.bot.get_channel(HEDEF_KANAL_ID)
+        if not kanal:
+            try:
+                kanal = await self.bot.fetch_channel(HEDEF_KANAL_ID)
+            except Exception:
+                kanal = None
+
         if not kanal:
             return await interaction.response.send_message("❌ Hedef kanal bulunamadı. ID'yi kontrol edin.", ephemeral=True)
 
