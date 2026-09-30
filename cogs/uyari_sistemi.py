@@ -76,6 +76,25 @@ MADDELER = {
     "D1":  {"puan": 3,  "aciklama": "Önemli kanallara (duyuru vb.) anlamsız, boş mesajlar atmak.", "ozel": None},
     "D2":  {"puan": 3,  "aciklama": "Ses kanallarında ses panelini veya sohbet kanallarında sohbeti gereksiz yere çağırmak (spawnlamak).", "ozel": None},
     "D3":  {"puan": 3,  "aciklama": "Önemli ses kanallarında sürekli yolculuk yaparak gereksiz bildirim yağmuruna sebep olmak.", "ozel": None},
+
+    # Kategori 3: Roleplay (RM) Kuralları
+    "RM1":  {"puan": 3, "aciklama": "Fail RP (FRP)", "ozel": None},
+    "RM2":  {"puan": 3, "aciklama": "Fear Roleplay (Korku Rolü Yapmama)", "ozel": None},
+    "RM3":  {"puan": 2, "aciklama": "Cop Trigger (Cop-Bait)", "ozel": None},
+    "RM4":  {"puan": 4, "aciklama": "New Life Rule (NLR) İhlali", "ozel": None},
+    "RM5":  {"puan": 2, "aciklama": "Non-RP Driving", "ozel": None},
+    "RM6":  {"puan": 3, "aciklama": "Combat LOG (CL)", "ozel": None},
+    "RM7":  {"puan": 4, "aciklama": "Meta Gaming (MG)", "ozel": None},
+    "RM8":  {"puan": 3, "aciklama": "Power Gaming (PG)", "ozel": None},
+    "RM9":  {"puan": 0, "aciklama": "Erotik Roleplay (ERP) Dayatması/İhlali", "ozel": "timeout_4gun"},
+    "RM10": {"puan": 4, "aciklama": "Random Shooting", "ozel": None},
+    "RM11": {"puan": 3, "aciklama": "Vehicle Death Match (VDM)", "ozel": None},
+    "RM12": {"puan": 2, "aciklama": "GOOA (Silah Çıkarma Kuralı İhlali)", "ozel": None},
+    "RM13": {"puan": 4, "aciklama": "Trash Talk (TT)", "ozel": None},
+    "RM14": {"puan": 3, "aciklama": "Random Death Match (RDM)", "ozel": None},
+    "RM15": {"puan": 1, "aciklama": "Kaza RP Yapmama", "ozel": None},
+    "RM16": {"puan": 2, "aciklama": "Refuse RP (Rolü Reddetmek)", "ozel": None},
+    "RM17": {"puan": 5, "aciklama": "Abuse (Oyun Açığı Suistimali)", "ozel": None},
 }
 
 # Yetkili Kuralları (puan sistemi yok, uyarı sayısı bazlı)
@@ -287,8 +306,8 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
         # Hedef yetkili mi kontrol et
         hedef_yetkili = kullanici_yetkili_mi(hedef)
         
-        # Yetkili maddeleri (Y1-Y5)
-        if madde_kodu in YETKILI_MADDELER:
+        # Yetkili maddeleri (Y1-Y5) ve RM maddeleri yetkili tarafından yapılırsa
+        if madde_kodu in YETKILI_MADDELER or (hedef_yetkili and madde_kodu.startswith("RM")):
             if not hedef_yetkili:
                 return await interaction.response.send_message(
                     f"❌ **{madde_kodu}** yetkili kuralıdır. {hedef.mention} yetkili değil!", ephemeral=True)
@@ -298,7 +317,7 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
         # Normal maddeler (M1-M12, D1-D3)
         if madde_kodu not in MADDELER:
             return await interaction.response.send_message(
-                "❌ Geçersiz madde numarası! Geçerli maddeler: M1-M12, D1-D3, Y1-Y5", ephemeral=True)
+                "❌ Geçersiz madde numarası! Geçerli maddeler: M1-M13, D1-D3, RM1-RM17, Y1-Y5", ephemeral=True)
         
         if hedef_yetkili and madde_kodu not in YETKILI_MADDELER:
             # Yetkililere normal madde uygulanabilir (M kuralları onlar için de geçerli)
@@ -368,6 +387,20 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
             await interaction.response.send_message(f"✅ **{hedef.display_name}** 2 gün timeout aldı. (M4)", ephemeral=True)
             return
         
+        
+        # RM9: 4 Gün Timeout
+        if ozel == "timeout_4gun":
+            sonuc = "4 Gün Timeout"
+            uyari_id = generate_uyari_id()
+            try:
+                await hedef.timeout(timedelta(days=4), reason=f"{madde_kodu} - {bilgi['aciklama']}")
+            except discord.Forbidden:
+                pass
+            add_sicil_record(hedef.id, madde_kodu, bilgi["aciklama"], yetkili.id, sonuc)
+            msg_id = await self._uyari_log_gonder(interaction, uyari_id, madde_kodu, bilgi, hedef, yetkili, 0, 0, 0, sonuc, guild)
+            await interaction.response.send_message(f"✅  **{hedef.display_name}** 4 gün timeout aldı. ({madde_kodu})", ephemeral=True)
+            return
+
         # M10, M11: 1 Gün Timeout
         if ozel == "timeout_1gun":
             sonuc = "1 Gün Timeout"
@@ -477,7 +510,7 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
 
     async def _yetkili_uyari_isle(self, interaction, madde_kodu, hedef, yetkili, guild):
         """Yetkili uyarı işlemi — puan yok, uyarı sayısı bazlı."""
-        bilgi = YETKILI_MADDELER[madde_kodu]
+        bilgi = YETKILI_MADDELER.get(madde_kodu) or MADDELER.get(madde_kodu)
         ozel = bilgi["ozel"]
         
         # Y1: Direkt yetkileri alınır
@@ -510,7 +543,13 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
             await interaction.response.send_message(f"✅ **{hedef.display_name}** — {sonuc}", view=kanit_view, ephemeral=True)
             return
         
-        # Y2-Y5: Yetkili uyarı sayısı +1
+        if ozel == "timeout_4gun":
+            try:
+                await hedef.timeout(timedelta(days=4), reason=f"{madde_kodu} - {bilgi['aciklama']}")
+            except:
+                pass
+
+        # Y2-Y5, RM1-RM17: Yetkili uyarı sayısı +1
         roller = [r.id for r in hedef.roles]
         mevcut_seviye = 0
         if YETKILI_UYARI_3 in roller: mevcut_seviye = 3
@@ -851,7 +890,7 @@ class UyariSistemi(commands.Cog):
                 "→ Uyarı alacak kişiyi seç.\n"
                 "→ Karşına çıkan madde numarasını doldur.\n"
                 "→ Kanıt görseli varsa yükle.\n\n"
-                "**Katılımcı Maddeleri:** M1-M12, D1-D3\n"
+                "**Katılımcı Maddeleri:** M1-M13, D1-D3, RM1-RM17\n"
                 "**Yetkili Maddeleri:** Y1-Y5"
             ),
             color=discord.Color.red()
