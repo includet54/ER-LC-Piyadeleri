@@ -463,7 +463,7 @@ class ResmiUyariModal(discord.ui.Modal, title="Uyarı - Madde Numarası"):
             toplam_uyari=aktif_uyari_sayisi
         )
         user_data["uyarilar"][-1]["log_msg_id"] = msg_id
-        save_data(UYARI_DATA_FILE, data)
+        save_user_data(uid, user_data)
         
         # Kanıt görsel seçeneği
         kanit_view = KanitGorselView(uyari_id, hedef.id, UYARILAR_KANAL_ID)

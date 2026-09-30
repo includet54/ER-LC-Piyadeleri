@@ -1232,8 +1232,11 @@ class CeteSistemi(commands.Cog):
             file1 = discord.File(os.path.join(BASE_DIR, "assets", "cete_logo_kucuk.jpg"), filename="kucuk.jpg")
             embed.set_thumbnail(url="attachment://kucuk.jpg")
             
-            file2 = discord.File(os.path.join(BASE_DIR, "assets", "cete_banner.jpg"), filename="banner.jpg")
-            embed.set_image(url="attachment://banner.jpg")
+            banner_file = os.path.join(BASE_DIR, "assets", "cete_banner.png")
+            if not os.path.exists(banner_file):
+                banner_file = os.path.join(BASE_DIR, "assets", "cete_banner.jpg")
+            file2 = discord.File(banner_file, filename="banner.png")
+            embed.set_image(url="attachment://banner.png")
             
             await channel.send(embed=embed, files=[file1, file2], view=GangPanelView())
         except Exception as e:

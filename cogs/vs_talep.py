@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ui import View, Button, Select, UserSelect
 import datetime
 import asyncio
+import os
 
 # ==================== AYARLAR ====================
 VS_TALEP_KANAL_ID = 1537136926287593503          # [vs talep] kanalı
@@ -362,10 +363,15 @@ class VSTalepCog(commands.Cog):
             ),
             color=0x9B59B6
         )
-        embed.set_image(url=VS_LOGO_URL)
-
+        banner_path = os.path.join(os.path.dirname(__file__), "..", "assets", "yeni_banner.png")
         view = VSSetupView()
-        await interaction.channel.send(embed=embed, view=view)
+        if os.path.exists(banner_path):
+            file = discord.File(banner_path, filename="yeni_banner.png")
+            embed.set_image(url="attachment://yeni_banner.png")
+            await interaction.channel.send(embed=embed, file=file, view=view)
+        else:
+            embed.set_image(url=VS_LOGO_URL)
+            await interaction.channel.send(embed=embed, view=view)
         await interaction.response.send_message("VS Talep paneli başarıyla kuruldu.", ephemeral=True)
 
     @tasks.loop(minutes=30)

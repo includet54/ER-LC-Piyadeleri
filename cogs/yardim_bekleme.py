@@ -245,15 +245,23 @@ class YardimBekleme(commands.Cog):
         
         embed.set_footer(text="© 2026 PRP")
         
-        LOGO_URL = "https://files.catbox.moe/m3e09z.png"
-        if LOGO_URL.startswith("http"):
-            embed.set_thumbnail(url=LOGO_URL)
+        logo_path = os.path.join(BASE_DIR, "assets", "uyari_logo.png")
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(BASE_DIR, "assets", "yeni_banner.png")
+            
+        file_attachment = None
+        if os.path.exists(logo_path):
+            file_attachment = discord.File(logo_path, filename="logo.png")
+            embed.set_thumbnail(url="attachment://logo.png")
         elif interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
             
         target_channel = interaction.client.get_channel(1552041858530672670)
         if target_channel:
-            await target_channel.send(content=f"{kisi.mention}", embed=embed)
+            if file_attachment:
+                await target_channel.send(content=f"{kisi.mention}", embed=embed, file=file_attachment)
+            else:
+                await target_channel.send(content=f"{kisi.mention}", embed=embed)
             await interaction.response.send_message("✅ Bildirim başarıyla gönderildi.", ephemeral=True)
         else:
             await interaction.response.send_message("❌ Hedef kanal bulunamadı (1552041858530672670).", ephemeral=True)
