@@ -351,14 +351,35 @@ class VSTalepCog(commands.Cog):
 
         embed = discord.Embed(
             description=(
-                "# PRP | VS Talep\n\n"
-                "> Hoş geldiniz. Size en iyi ve en hızlı kapışmayı sunabilmemiz için aşağıdaki kurallara dikkat edin.\n\n"
-                "---\n\n"
-                "**Kurallar**\n"
-                "> • Gereksiz, trolleme amaçlı veya konu dışı talep açmak yasaktır.\n"
-                "> • Talep açıldıktan sonra 2 gün süresi vardır. Süre dolunca sorgusuz kapanır.\n"
-                "> • Managerlara ya da <@&1553427352044707840>'ne kanıt göstermek zorundasınız.\n\n"
-                "---\n\n"
+                "# PRP | VS Talep
+
+"
+                "> Hoş geldiniz. Size en iyi ve en hızlı kapışmayı sunabilmemiz için aşağıdaki kurallara dikkat edin.
+
+"
+                "---
+
+"
+                "**Kurallar**
+"
+                "> • Gereksiz, trolleme amaçlı veya konu dışı talep açmak yasaktır.
+"
+                "> • Talep açıldıktan sonra 2 gün süresi vardır. Süre dolunca sorgusuz kapanır.
+"
+                "> • Managerlara ya da <@&1553427352044707840>'ne kanıt göstermek zorundasınız.
+"
+                "> • Kanıt olmadan hiç bir işlem yapılamaz. ( Geçerli bir kayıt olması lazım)
+"
+                "> • Talep sonrası Alay/Dalga/Küçümseme gibi durumlar kabul edilemez.
+"
+                "> • Dürüst ve adaletli bir kapışma olsun. (M13!)
+"
+                "> • Burada yapılan etkinlikler RP içeriğini etkilemeyecektir!
+
+"
+                "---
+
+"
                 "Aşağıdaki butona tıklayarak kişiyi ve uygun kısmı seçerek talep oluşturabilirsiniz."
             ),
             color=0x9B59B6
