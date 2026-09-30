@@ -6,22 +6,31 @@ import re
 import aiohttp
 
 # ============================
-# BURAYA KENDİ ID'LERİNİ YAZ
+# KANAL VE ROL ID'LERİ
 # ============================
-KAYIT_KANAL_ID = 1532831582753128530      # Kayıt butonunun olacağı kanal
-ONAY_KANAL_ID = 1532828473972752555       # Onaylama kanalı
-UYE_ROL_ID = 1533919249985437706
-WHITELIST_ROL_ID = 1533908873772273715
-ONAYLANMIS_BIREY_ROL_ID = 1534741499726663690
-ERKEK_ROL_ID = 1534736940904218755
-KIZ_ROL_ID = 1534736941600342016
+KAYIT_KANAL_ID = 1532831582753128530          # Kayıt butonunun olacağı kanal
+ONAY_KANAL_ID = 1532828473972752555           # Yetkililerin önüne düşen başvuru kanalı
+KAYIT_LOG_KANAL_ID = 1552306929571733635      # Onaylanan üyelerin duyurulduğu log kanalı
+
+UYE_ROL_ID = 1533919249985437706              # Üye Rolü
+WHITELIST_ROL_ID = 1533908873772273715        # Whitelist Rolü
+ERKEK_ROL_ID = 1534736940904218755            # Erkek Rolü
+KIZ_ROL_ID = 1534736941600342016              # Kız Rolü
+
+KAYITSIZ_ROL_ID = 1542271426386591894         # Kayıtsız Rolü (Onaylanınca alınır)
+WHITELIST_YETKILISI_ROL_ID = 1551242344190189718  # Whitelist Yetkilisi Rolü (Bildirim için)
 
 YETKILI_ROL_IDLERI = [
     1529546007635824680,  # KURUCU
     1539167256246747186,  # ÜST YÖNETİM
     1534798061845483694,  # YÖNETİCİ
     1537934087166369812,  # YÖNETİM EKİBİ
+    1551242344190189718,  # WHITELIST YETKILISI
 ]
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RED_BANNER_PATH = os.path.join(BASE_DIR, "assets", "roblox_red_banner.png")
+PANEL_BANNER_PATH = os.path.join(BASE_DIR, "assets", "yeni_banner.png")
 # ============================
 
 
@@ -100,36 +109,104 @@ class KayitModal(discord.ui.Modal, title="📋 Kayıt Formu"):
     )
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
         onay_kanal = interaction.guild.get_channel(ONAY_KANAL_ID)
         if onay_kanal is None:
-            return await interaction.response.send_message(
-                "Onaylama kanalı bulunamadı, yöneticiye haber ver.", ephemeral=True
+            return await interaction.followup.send(
+                "❌ Onaylama kanalı bulunamadı, lütfen yöneticilere haber veriniz.", ephemeral=True
             )
 
         user_id = interaction.user.id
 
+        # 1. Roblox API Doğrulaması
+        roblox_ad, roblox_id, roblox_avatar = await roblox_kullanici_bul(self.roblox_link.value)
+
+        # 2. Roblox Hesabı Bulunamazsa OTOMATİK RED
+        if not roblox_ad:
+            red_embed = discord.Embed(
+                title="❌ Kayıt Başvurunuz Otomatik Olarak Reddedildi",
+                description=(
+                    f"Merhaba {interaction.user.mention},\n\n"
+                    f"**ER:LC Piyadeleri** sunucumuza yaptığınız kayıt başvurusu, girdiğiniz Roblox bilgisi doğrulanamadığı için **otomatik olarak reddedilmiştir.**\n\n"
+                    f"### 📌 Reddedilme Gerekçesi:\n"
+                    f"Formda belirttiğiniz `{self.roblox_link.value}` bilgisi Roblox sistemlerinde bulunamadı veya geçersiz bir format girildi.\n\n"
+                    f"### 💡 Çözüm ve Tekrar Başvuru Rehberi:\n"
+                    f"• **Doğru Kullanıcı Adı:** Roblox görünen adınızı (Display Name) değil, asıl hesap adınızı (`@` ile başlayan kullanıcı adı) yazınız.\n"
+                    f"• **Profil Linki:** Tarayıcınızdan Roblox profilinize girerek linki kopyalayabilirsiniz (Örn: `https://www.roblox.com/users/12345678/profile`).\n"
+                    f"• **Sayısal ID:** Profil linkinizde yer alan sayısal ID numaranızı doğrudan yazabilirsiniz.\n"
+                    f"• **Yazım Kontrolü:** Harf, rakam ve boşlukları kontrol ettikten sonra kayıt kanalından tekrar başvurabilirsiniz."
+                ),
+                color=discord.Color.red()
+            )
+            red_embed.set_footer(text="ER:LC Piyadeleri Kayıt Yönetimi", icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
+            red_embed.timestamp = discord.utils.utcnow()
+
+            dm_gonderildi = True
+            try:
+                if os.path.exists(RED_BANNER_PATH):
+                    dosya = discord.File(RED_BANNER_PATH, filename="roblox_red_banner.png")
+                    red_embed.set_image(url="attachment://roblox_red_banner.png")
+                    await interaction.user.send(embed=red_embed, file=dosya)
+                else:
+                    await interaction.user.send(embed=red_embed)
+            except discord.Forbidden:
+                dm_gonderildi = False
+
+            if dm_gonderildi:
+                return await interaction.followup.send(
+                    "❌ Girdiğiniz Roblox hesabı bulunamadığı için başvurunuz **otomatik olarak reddedildi**.\n"
+                    "Gerekçe, çözüm adımları ve bilgilendirme görseli **DM kutunuza iletildi.** Lütfen kontrol edip tekrar deneyiniz.",
+                    ephemeral=True
+                )
+            else:
+                # Kullanıcının DM'leri kapalıysa modal yanıtı olarak görsel ve embed'i göster
+                if os.path.exists(RED_BANNER_PATH):
+                    dosya = discord.File(RED_BANNER_PATH, filename="roblox_red_banner.png")
+                    red_embed.set_image(url="attachment://roblox_red_banner.png")
+                    return await interaction.followup.send(
+                        content="⚠️ DM kutunuz kapalı olduğu için mesaj özelinize iletilemedi. Lütfen aşağıdaki çözüm adımlarını inceleyiniz:",
+                        embed=red_embed,
+                        file=dosya,
+                        ephemeral=True
+                    )
+                else:
+                    return await interaction.followup.send(
+                        content="⚠️ DM kutunuz kapalı olduğu için mesaj özelinize iletilemedi. Lütfen aşağıdaki çözüm adımlarını inceleyiniz:",
+                        embed=red_embed,
+                        ephemeral=True
+                    )
+
+        # 3. Roblox Hesabı Başarıyla Doğrulandıysa Onay Kanalına İlet
         embed = discord.Embed(
             title="🆕 Yeni Kayıt Başvurusu",
             color=discord.Color.blurple(),
         )
-        embed.add_field(name="Discord Kullanıcı", value=f"{interaction.user.mention}", inline=False)
-        embed.add_field(name="Gerçek Adı", value=self.gercek_ad.value, inline=False)
-        embed.add_field(name="Roblox Profil Linki", value=self.roblox_link.value, inline=False)
-        embed.add_field(name="Cinsiyet", value=self.cinsiyet.value, inline=False)
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
-        # ID footer'a görsel referans olarak bırakıyoruz; asıl kaynak custom_id'dir
+        embed.add_field(name="Discord Kullanıcı", value=f"{interaction.user.mention} (`{interaction.user.id}`)", inline=False)
+        embed.add_field(name="Gerçek Adı", value=self.gercek_ad.value, inline=True)
+        embed.add_field(name="Cinsiyet", value=self.cinsiyet.value, inline=True)
+        embed.add_field(name="Roblox Adı (Doğrulandı ✅)", value=f"**{roblox_ad}**", inline=False)
+        if roblox_id:
+            embed.add_field(name="Roblox Profil Linki", value=f"[{roblox_ad} Profili](https://www.roblox.com/users/{roblox_id}/profile) (ID: `{roblox_id}`)", inline=False)
+        else:
+            embed.add_field(name="Roblox Profil Linki", value=self.roblox_link.value, inline=False)
+
+        if roblox_avatar:
+            embed.set_thumbnail(url=roblox_avatar)
+        else:
+            embed.set_thumbnail(url=interaction.user.display_avatar.url)
+
         embed.set_footer(text=f"Başvuran ID: {user_id}")
         embed.timestamp = discord.utils.utcnow()
 
-        whitelist_yetkilisi_rol_id = 1551242344190189718
-        # user_id doğrudan OnayView'a geçiliyor — footer parse edilmeyecek
         await onay_kanal.send(
-            content=f"<@&{whitelist_yetkilisi_rol_id}>",
+            content=f"<@&{WHITELIST_YETKILISI_ROL_ID}>",
             embed=embed,
             view=OnayView(user_id=user_id),
         )
-        await interaction.response.send_message(
-            "✅ Kayıt başvurun alındı! Yetkililer en kısa sürede inceleyecek.", ephemeral=True
+        await interaction.followup.send(
+            f"✅ Roblox hesabınız doğrulandı (**{roblox_ad}**)! Kayıt başvurunuz yetkililere iletildi, lütfen incelenmesini bekleyiniz.",
+            ephemeral=True
         )
 
 
@@ -140,16 +217,16 @@ class KayitButonView(discord.ui.View):
     @discord.ui.button(label="✅ Kayıt Ol", style=discord.ButtonStyle.green, custom_id="kayit_ol_buton")
     async def kayit_ol(self, interaction: discord.Interaction, button: discord.ui.Button):
         if UYE_ROL_ID in [rol.id for rol in interaction.user.roles]:
-            return await interaction.response.send_message("Zaten kayıtlısın!", ephemeral=True)
+            return await interaction.response.send_message("❌ Zaten sunucumuza kayıtlısınız!", ephemeral=True)
         await interaction.response.send_modal(KayitModal())
 
 
-class RedSebepModal(discord.ui.Modal, title="❌ Reddetme Sebebi"):
+class RedSebepModal(discord.ui.Modal, title="❌ Başvuru Reddetme"):
     sebep = discord.ui.TextInput(
-        label="Reddetme sebebi",
+        label="Reddetme Sebebi",
         style=discord.TextStyle.paragraph,
-        placeholder="Örn: Roblox linki geçersiz.",
-        max_length=300,
+        placeholder="Örn: Bilgiler eksik veya kural ihlali tespit edildi.",
+        max_length=400,
         required=True,
     )
 
@@ -159,15 +236,32 @@ class RedSebepModal(discord.ui.Modal, title="❌ Reddetme Sebebi"):
         self.orijinal_mesaj = orijinal_mesaj
 
     async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         uye = guild.get_member(self.hedef_kullanici_id)
+
+        dm_embed = discord.Embed(
+            title="❌ Kayıt Başvurunuz Reddedildi",
+            description=(
+                f"Merhaba {uye.mention if uye else 'Kullanıcı'},\n\n"
+                f"**{guild.name}** sunucusundaki kayıt başvurunuz yetkili ekip tarafından incelenmiş ve **reddedilmiştir.**\n\n"
+                f"**Reddedilme Sebebi:**\n```{self.sebep.value}```\n"
+                f"Sorularınız veya itirazlarınız için yetkili ekibimizle iletişime geçebilirsiniz."
+            ),
+            color=discord.Color.red()
+        )
+        dm_embed.set_footer(text=f"İnceleyen Yetkili: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
+        dm_embed.timestamp = discord.utils.utcnow()
 
         dm_gonderildi = True
         if uye:
             try:
-                await uye.send(
-                    f"❌ **{guild.name}** sunucusundaki kayıt başvurun reddedildi.\n**Sebep:** {self.sebep.value}"
-                )
+                if os.path.exists(RED_BANNER_PATH):
+                    dosya = discord.File(RED_BANNER_PATH, filename="roblox_red_banner.png")
+                    dm_embed.set_image(url="attachment://roblox_red_banner.png")
+                    await uye.send(embed=dm_embed, file=dosya)
+                else:
+                    await uye.send(embed=dm_embed)
             except discord.Forbidden:
                 dm_gonderildi = False
 
@@ -182,24 +276,14 @@ class RedSebepModal(discord.ui.Modal, title="❌ Reddetme Sebebi"):
 
         await self.orijinal_mesaj.edit(embed=yeni_embed, view=None)
 
-        ek_bilgi = "" if dm_gonderildi else "\n⚠️ Kullanıcıya DM gönderilemedi (DM'leri kapalı olabilir)."
-        await interaction.response.send_message(f"Başvuru reddedildi.{ek_bilgi}", ephemeral=True)
+        ek_bilgi = "" if dm_gonderildi else "\n⚠️ Kullanıcıya DM gönderilemedi (DM kutusu kapalı)."
+        await interaction.followup.send(f"✅ Başvuru başarıyla reddedildi.{ek_bilgi}", ephemeral=True)
 
 
 class OnayView(discord.ui.View):
-    """
-    user_id parametresi verilirse dinamik (yeni başvuru) modda çalışır:
-    buton custom_id'lerine user_id gömülür.
-
-    Parametresiz çağrıldığında (bot restart sonrası persistent view kaydı için)
-    boş custom_id prefix'leriyle kaydolur — bu durumda buton callback'leri
-    custom_id'den ID okur.
-    """
-
     def __init__(self, *, user_id: int | None = None):
         super().__init__(timeout=None)
         uid_str = str(user_id) if user_id else "0"
-        # Butonları programatik ekle; custom_id içinde user_id taşısın
         self.add_item(_OnaylaButon(uid_str))
         self.add_item(_ReddetButon(uid_str))
 
@@ -214,7 +298,7 @@ class _OnaylaButon(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if not yetkili_mi(interaction.user):
-            return await interaction.response.send_message("Bu işlemi yapma yetkin yok.", ephemeral=True)
+            return await interaction.response.send_message("❌ Bu işlemi yapma yetkiniz yok.", ephemeral=True)
 
         hedef_id = None
         try:
@@ -231,22 +315,29 @@ class _OnaylaButon(discord.ui.Button):
                 hedef_id = int(match.group())
 
         if not hedef_id:
-            return await interaction.response.send_message("Kullanıcı ID okunamadı.", ephemeral=True)
+            return await interaction.response.send_message("❌ Kullanıcı ID okunamadı.", ephemeral=True)
 
-        embed = interaction.message.embeds[0]
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         uye = guild.get_member(hedef_id)
         if uye is None:
+            try:
+                uye = await guild.fetch_member(hedef_id)
+            except Exception:
+                uye = None
+
+        if uye is None:
             return await interaction.followup.send(
-                "Kullanıcı sunucuda bulunamadı (ayrılmış olabilir).", ephemeral=True
+                "❌ Kullanıcı sunucuda bulunamadı (ayrılmış olabilir).", ephemeral=True
             )
 
+        embed = interaction.message.embeds[0]
         gercek_ad = embed.fields[1].value
-        roblox_link = embed.fields[2].value
-        cinsiyet_cevap = embed.fields[3].value.lower()
+        cinsiyet_cevap = embed.fields[2].value.lower()
+        roblox_link = embed.fields[4].value if len(embed.fields) > 4 else embed.fields[3].value
 
-        rol_idler = [UYE_ROL_ID, WHITELIST_ROL_ID, ONAYLANMIS_BIREY_ROL_ID]
+        # Verilecek Roller: Üye (1533919249985437706), Whitelist (1533908873772273715), Cinsiyet Rolü
+        rol_idler = [UYE_ROL_ID, WHITELIST_ROL_ID]
         if "erkek" in cinsiyet_cevap or cinsiyet_cevap.startswith("e"):
             rol_idler.append(ERKEK_ROL_ID)
         elif "kız" in cinsiyet_cevap or "kiz" in cinsiyet_cevap or cinsiyet_cevap.startswith("k"):
@@ -258,13 +349,15 @@ class _OnaylaButon(discord.ui.Button):
         except discord.Forbidden:
             pass
 
-        kayitsiz_rol = guild.get_role(1542271426386591894)
-        if kayitsiz_rol in uye.roles:
+        # Kayıtsız rolünü al
+        kayitsiz_rol = guild.get_role(KAYITSIZ_ROL_ID)
+        if kayitsiz_rol and kayitsiz_rol in uye.roles:
             try:
                 await uye.remove_roles(kayitsiz_rol, reason="Kayıt tamamlandı")
             except Exception:
                 pass
 
+        # Roblox bilgilerini tazele ve nickname düzenle
         roblox_ad, roblox_id, roblox_avatar = await roblox_kullanici_bul(roblox_link)
         if roblox_ad is None:
             roblox_ad = "RobloxKullanıcı"
@@ -275,30 +368,55 @@ class _OnaylaButon(discord.ui.Button):
         except discord.Forbidden:
             pass
 
+        # Kullanıcıya DM ile tebrik mesajı gönder
         try:
-            await uye.send(f"✅ **{guild.name}** sunucusundaki kayıt başvurun onaylandı! Hoş geldin 🎉")
+            tebrik_embed = discord.Embed(
+                title="🎉 Kayıt Başvurunuz Onaylandı!",
+                description=(
+                    f"Merhaba {uye.mention},\n\n"
+                    f"**{guild.name}** sunucumuza yaptığınız kayıt başvurusu yetkililer tarafından onaylanmıştır!\n\n"
+                    f"• **Sunucu İçi İsminiz:** `{yeni_nick}`\n"
+                    f"• **Roblox Hesabınız:** `{roblox_ad}`\n\n"
+                    f"Aramıza hoş geldiniz, keyifli oyunlar dileriz! 🎮✨"
+                ),
+                color=discord.Color.green()
+            )
+            tebrik_embed.set_footer(text=guild.name, icon_url=guild.icon.url if guild.icon else None)
+            tebrik_embed.timestamp = discord.utils.utcnow()
+            await uye.send(embed=tebrik_embed)
         except discord.Forbidden:
             pass
 
-        kayit_log_kanal = interaction.client.get_channel(1552306929571733635)
+        # Kayıt Log Kanalına Bildir
+        kayit_log_kanal = interaction.client.get_channel(KAYIT_LOG_KANAL_ID)
+        if not kayit_log_kanal:
+            try:
+                kayit_log_kanal = await interaction.client.fetch_channel(KAYIT_LOG_KANAL_ID)
+            except Exception:
+                kayit_log_kanal = None
+
         if kayit_log_kanal:
             log_embed = discord.Embed(
-                title="Yeni Üye Kaydı",
-                description=f"{uye.mention} aramıza katıldı!",
+                title="🎉 Yeni Üye Kaydı",
+                description=f"{uye.mention} başarıyla kayıt oldu ve aramıza katıldı!",
                 color=discord.Color.green(),
             )
-            log_embed.add_field(name="Roblox Adı", value=roblox_ad, inline=False)
+            log_embed.add_field(name="👤 Kullanıcı Adı", value=f"**{roblox_ad}**", inline=True)
             if roblox_id:
-                log_embed.add_field(name="Roblox ID", value=roblox_id, inline=False)
+                log_embed.add_field(name="🆔 Roblox ID", value=f"`{roblox_id}`", inline=True)
                 log_embed.add_field(
-                    name="Roblox Profil",
-                    value=f"[Profile Git](https://www.roblox.com/users/{roblox_id}/profile)",
+                    name="🔗 Profil Linki",
+                    value=f"[Roblox Profiline Git](https://www.roblox.com/users/{roblox_id}/profile)",
                     inline=False,
                 )
+            log_embed.add_field(name="🛡️ Onaylayan Yetkili", value=interaction.user.mention, inline=True)
             if roblox_avatar:
                 log_embed.set_thumbnail(url=roblox_avatar)
+            log_embed.timestamp = discord.utils.utcnow()
+            log_embed.set_footer(text=f"Üye ID: {uye.id}")
             await kayit_log_kanal.send(content=uye.mention, embed=log_embed)
 
+        # Başvuru Mesajını Güncelle
         yeni_embed = embed.copy()
         yeni_embed.add_field(
             name="Sonuç",
@@ -308,7 +426,8 @@ class _OnaylaButon(discord.ui.Button):
         yeni_embed.color = discord.Color.green()
         await interaction.message.edit(embed=yeni_embed, view=None)
         await interaction.followup.send(
-            "Kullanıcı onaylandı ve roller (Üye, Onaylanmış Birey ve Cinsiyet) verildi.", ephemeral=True
+            f"✅ {uye.mention} kullanıcısı onaylandı. Roller verildi ve ismi `{yeni_nick}` olarak güncellendi.",
+            ephemeral=True
         )
 
 
@@ -322,7 +441,8 @@ class _ReddetButon(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if not yetkili_mi(interaction.user):
-            return await interaction.response.send_message("Bu işlemi yapma yetkin yok.", ephemeral=True)
+            return await interaction.response.send_message("❌ Bu işlemi yapma yetkiniz yok.", ephemeral=True)
+
         hedef_id = None
         try:
             parts = self.custom_id.split("_")
@@ -338,7 +458,8 @@ class _ReddetButon(discord.ui.Button):
                 hedef_id = int(match.group())
 
         if not hedef_id:
-            return await interaction.response.send_message("Kullanıcı ID okunamadı.", ephemeral=True)
+            return await interaction.response.send_message("❌ Kullanıcı ID okunamadı.", ephemeral=True)
+
         await interaction.response.send_modal(RedSebepModal(hedef_id, interaction.message))
 
 
@@ -346,13 +467,13 @@ class Registration(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="kayit-panel", description="Kayıt panelini gönderir")
+    @app_commands.command(name="kayit-panel", description="Kayıt panelini bu kanala kurar.")
     async def kayit_panel(self, interaction: discord.Interaction):
         if not discord.utils.get(interaction.user.roles, id=1529546007635824680):
             return await interaction.response.send_message("❌ Bu komutu sadece **Kurucu** kullanabilir!", ephemeral=True)
 
         if not yetkili_mi(interaction.user):
-            return await interaction.response.send_message("Yetkin yok.", ephemeral=True)
+            return await interaction.response.send_message("❌ Yetkiniz bulunmuyor.", ephemeral=True)
 
         desc = (
             "### • Kayıt olmadan önce kuralları okumayı unutmayınız.\n\n"
@@ -370,14 +491,14 @@ class Registration(commands.Cog):
         embed.set_author(name=interaction.user.display_name, icon_url=interaction.user.display_avatar.url)
         
         await interaction.response.defer(ephemeral=True)
-        banner_path = os.path.join(os.path.dirname(__file__), "..", "assets", "yeni_banner.png")
-        if os.path.exists(banner_path):
-            file = discord.File(banner_path, filename="yeni_banner.png")
+        if os.path.exists(PANEL_BANNER_PATH):
+            file = discord.File(PANEL_BANNER_PATH, filename="yeni_banner.png")
             embed.set_image(url="attachment://yeni_banner.png")
             await interaction.channel.send(embed=embed, file=file, view=KayitButonView())
         else:
             await interaction.channel.send(embed=embed, view=KayitButonView())
-        await interaction.followup.send("Panel başarıyla gönderildi.", ephemeral=True)
+        await interaction.followup.send("✅ Panel başarıyla gönderildi.", ephemeral=True)
+
 
 async def setup(bot):
     await bot.add_cog(Registration(bot))
