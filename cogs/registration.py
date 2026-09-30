@@ -476,15 +476,16 @@ class Registration(commands.Cog):
             return await interaction.response.send_message("❌ Yetkiniz bulunmuyor.", ephemeral=True)
 
         desc = (
-            "### • Kayıt olmadan önce kuralları okumayı unutmayınız.\n\n"
-            "### • Bu sunucuda düzen bozamazsınız.\n\n"
-            "### • Kayıt olduktan sonra Sohbet kanalına ilk mesajınızı gönderebilirsiniz.\n\n"
-            "### • Kayıt olmak için Roblox Profil Linkiniz gereklidir.\n\n"
-            "### • Ankette adınızı yazmak istemiyorsanız takma ad kullanabilirsiniz.\n\n"
-            "### • Kayıt ol ve sunucumuzla etkileşime geç! 🥳"
+            "> 📜 **Kural & Düzen:** Kayıt olmadan önce kuralları okumayı unutmayınız. Sunucu düzenini ve rol kalitesini bozacak davranışlar yasaktır.\n> \n"
+            "> 👁️ **Kanal Erişimi:** Sunucu adının üstüne tıklayarak **Tüm Kanalları Göster** seçeneğini mutlaka aktif edin!\n> \n"
+            "> 🔗 **Roblox Doğrulaması:** Başvuru sırasında geçerli **Roblox Profil Linkiniz** gereklidir.\n> \n"
+            "> 👤 **İsim Tercihi:** Formda gerçek isminizi belirtmek istemiyorsanız takma ad (Roleplay ismi) kullanabilirsiniz.\n> \n"
+            "> 💬 **Sohbet & İletişim:** Kaydınız onaylandıktan sonra sohbet kanallarına ilk mesajınızı gönderip topluluğumuza katılabilirsiniz!\n> \n"
+            "> 🎫 **Yardım & Destek:** Kayıt olmakta sorun yaşıyorsanız [Destek Bileti](https://discord.com/channels/1529545898294509589/1534770099179884564) kanalından talep oluşturabilirsiniz.\n\n"
+            "Aşağıdaki **Kayıt Ol** butonuna basarak başvurunuzu başlatabilirsiniz! 🥳"
         )
         embed = discord.Embed(
-            title="📋 Kayıt Sistemi",
+            title="🏛️ PİYADE RP | Kayıt Rehberi & Sistemi",
             description=desc,
             color=discord.Color.green(),
         )
