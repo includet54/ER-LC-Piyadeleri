@@ -218,7 +218,12 @@ class RPOylama(commands.Cog):
             ),
             inline=False
         )
-        embed.set_footer(text="Piyade Roleplay • İyi roller dileriz! • 01:00'da rol sonlanacaktır.")
+        embed.add_field(
+            name="🔑 Sunucu Katılım Kodu:",
+            value="> `piyade`",
+            inline=False
+        )
+        embed.set_footer(text="Piyade RP ∞ | Sunucu Yönetimi™")
         return embed
 
     def olustur_gece_embed(self) -> discord.Embed:
@@ -275,10 +280,12 @@ class RPOylama(commands.Cog):
             ),
             inline=False
         )
-        if tetikleyen:
-            embed.set_footer(text=f"Piyade Roleplay Duyuru Sistemi • Başlatan: {tetikleyen.display_name}")
-        else:
-            embed.set_footer(text="Piyade Roleplay Duyuru Sistemi • Oylama Tamamlandı")
+        embed.add_field(
+            name="🔑 Sunucu Katılım Kodu:",
+            value="> `piyade`",
+            inline=False
+        )
+        embed.set_footer(text="Piyade RP ∞ | Sunucu Yönetimi™")
         return embed
 
     def olustur_kapanis_duyuru_embed(self) -> discord.Embed:
@@ -303,7 +310,7 @@ class RPOylama(commands.Cog):
             ),
             inline=False
         )
-        embed.set_footer(text="Piyade Roleplay Duyuru Sistemi • İyi Geceler!")
+        embed.set_footer(text="Piyade RP ∞ | Sunucu Yönetimi™")
         return embed
 
     async def kapanis_duyuru_gonder(self):
