@@ -281,6 +281,56 @@ class RPOylama(commands.Cog):
             embed.set_footer(text="Piyade Roleplay Duyuru Sistemi • Oylama Tamamlandı")
         return embed
 
+    def olustur_kapanis_duyuru_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🌙 PRP | GÜN SONU: ROL SÜRECİ BİTMİŞTİR",
+            color=discord.Color.from_rgb(44, 62, 80),
+            timestamp=datetime.now(tz_tr)
+        )
+        embed.description = (
+            "# 💤 Los Angeles Sokakları Sessizliğe Büründü!\n"
+            "──────────────────────────────────────────\n"
+            "Bugünkü resmi rol sürecimiz saat **01:00** itibarıyla tamamlanmıştır. Role katılan, kurallara özen gösteren ve şehre hayat veren tüm oyuncularımıza teşekkür ederiz!\n\n"
+            "Yeni günün rol oylaması yarın saat **12:00**'da tekrar açılacaktır. Tüm sakinlerimize ve birimlerimize iyi istirahatler dileriz!\n"
+            "──────────────────────────────────────────"
+        )
+        embed.add_field(
+            name="📋 Bilgilendirme & Durum",
+            value=(
+                "• 🎮 **Sunucu Durumu:** `Dinlenme Modunda (Rol Kapalı)`\n"
+                "• 📡 **Oyun İçi Anons:** Ekranlara gönderildi (`:m`)\n"
+                "• 🔓 **Yeni Oylama Başlangıcı:** Saat `12:00`"
+            ),
+            inline=False
+        )
+        embed.set_footer(text="Piyade Roleplay Duyuru Sistemi • İyi Geceler!")
+        return embed
+
+    async def kapanis_duyuru_gonder(self):
+        duyuru_kanali = self.bot.get_channel(DUYURU_KANAL_ID)
+        if not duyuru_kanali:
+            try:
+                duyuru_kanali = await self.bot.fetch_channel(DUYURU_KANAL_ID)
+            except Exception as e:
+                print(f"[RP OYLAMA HATA] Kapanış duyuru kanalı ({DUYURU_KANAL_ID}) bulunamadı: {e}", flush=True)
+                return
+
+        embed = self.olustur_kapanis_duyuru_embed()
+        content = f"<@&{WHITELIST_ROL_ID}>"
+
+        if os.path.exists(BANNER_PATH):
+            file = discord.File(BANNER_PATH, filename="piyade_rp_banner.png")
+            embed.set_image(url="attachment://piyade_rp_banner.png")
+            try:
+                await duyuru_kanali.send(content=content, embed=embed, file=file)
+            except Exception as e:
+                print(f"[RP OYLAMA HATA] Resimli kapanış duyurusu gönderilemedi: {e}", flush=True)
+        else:
+            try:
+                await duyuru_kanali.send(content=content, embed=embed)
+            except Exception as e:
+                print(f"[RP OYLAMA HATA] Kapanış duyurusu gönderilemedi: {e}", flush=True)
+
     # ── KANAL VE PANEL YÖNETİMİ ──
     async def temizle_ve_panel_gonder(self, mod: str):
         channel = self.bot.get_channel(PANEL_KANAL_ID)
@@ -426,12 +476,23 @@ class RPOylama(commands.Cog):
             except Exception as e:
                 print(f"[RP OYLAMA HATA] Duyuru gönderilemedi: {e}", flush=True)
 
-    async def gece_moduna_gec(self):
-        """01:00 gece moduna geçiş: Eski mesajları sil, gece panelini koy."""
+    async def gece_moduna_gec(self, bildirim_gonder: bool = True):
+        """01:00 gece moduna geçiş: ER:LC anonsu, Whitelist kapanış pingi, eski mesajları temizleme ve gece panelini koyma."""
         self.durum = "GECE"
         self.rp_aktif = False
         self.oy_verenler = set()
         self.kaydet_durum()
+
+        # Eğer bildirim gönderilecekse (Saat 01:00 olduğunda veya yetkili /rp-durdur kullandığında)
+        if bildirim_gonder:
+            # 1. Roblox ER:LC oyun içi kapanış anonsu
+            erlc_komut = ":m Rol bitmiştir , herkese iyi istirahatler dileriz."
+            await send_erlc_announcement(erlc_komut)
+
+            # 2. Whitelist duyuru kanalına pingli kapanış bildirimi
+            await self.kapanis_duyuru_gonder()
+
+        # 3. Panel kanalındaki eski mesajları temizle ve gece panelini yerleştir
         await self.temizle_ve_panel_gonder("GECE")
 
     async def gunduz_moduna_gec(self):
@@ -487,10 +548,10 @@ class RPOylama(commands.Cog):
         gece_vakti = (1 <= saat < 12)
 
         if gece_vakti:
-            # Gece vakti ama sistem henüz gece moduna geçmemişse
+            # Gece vakti ama sistem henüz gece moduna geçmemişse (Saat 01:00 olduğunda otomatik tetiklenir)
             if self.durum != "GECE":
-                print(f"[RP ZAMANLAYICI] Gece saatine girildi ({saat}:{now.minute:02d}). Dinlenme moduna geçiliyor...", flush=True)
-                await self.gece_moduna_gec()
+                print(f"[RP ZAMANLAYICI] Saat 01:00 gece moduna girildi ({saat}:{now.minute:02d}). Rol sonlandırılıyor ve anonslar yapılıyor...", flush=True)
+                await self.gece_moduna_gec(bildirim_gonder=True)
         else:
             # Gündüz vakti (saat >= 12 veya saat == 0)
             # Gece modundaysak veya tarih değişip yeni güne girildiyse oylama aç
@@ -526,14 +587,14 @@ class RPOylama(commands.Cog):
         await self.rolu_baslat(tetikleyen=interaction.user)
         await interaction.followup.send("🟢 **Rol başarıyla manuel olarak başlatıldı!** Panel yeşile çevrildi ve anonslar yapıldı.", ephemeral=True)
 
-    @app_commands.command(name="rp-durdur", description="Rolü sonlandırır ve kanalı gece dinlenme moduna alır.")
+    @app_commands.command(name="rp-durdur", description="Rolü sonlandırır, anonsları geçer ve kanalı gece dinlenme moduna alır.")
     async def cmd_rp_durdur(self, interaction: discord.Interaction):
         if not yetkili_mi(interaction):
             return await interaction.response.send_message("❌ Bu komutu kullanmak için yetkiniz bulunmamaktadır.", ephemeral=True)
 
         await interaction.response.defer(ephemeral=True)
-        await self.gece_moduna_gec()
-        await interaction.followup.send("🌙 **Rol sonlandırıldı ve kanal gece dinlenme moduna alındı.**", ephemeral=True)
+        await self.gece_moduna_gec(bildirim_gonder=True)
+        await interaction.followup.send("🌙 **Rol sonlandırıldı!** Roblox'a kapanış anonsu gönderildi, Whitelist rolü etiketlenerek duyuru geçildi ve kanal gece dinlenme moduna alındı.", ephemeral=True)
 
     @app_commands.command(name="rp-hedef-belirle", description="Rol başlangıcı için gereken hedef oy sayısını belirler.")
     @app_commands.describe(sayi="Rolün başlaması için gereken oy barajı (Varsayılan: 5)")
