@@ -20,7 +20,7 @@ NUKE_TIME_SECONDS = 30
 
 WHITELISTED_ROLES = [1529546007635824680, 1539167256246747186]
 
-SECURITY_LOG_CHANNEL_ID = 1554830631408504842
+SECURITY_LOG_CHANNEL_ID = 1555275542452772934
 RAID_BYPASS_LOG_CHANNEL = 1533621981830844538
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -113,7 +113,7 @@ class SecurityGuard(commands.Cog):
             embed = discord.Embed(title=f"🛡️ {title}", description=description, color=color)
             embed.timestamp = discord.utils.utcnow()
             try:
-                await kanal.send(content="@here 🚨 **GÜVENLİK UYARISI**", embed=embed)
+                await kanal.send(content="<@&1529546007635824680> 🚨 **GÜVENLİK UYARISI**", embed=embed)
             except:
                 pass
 
@@ -143,7 +143,7 @@ class SecurityGuard(commands.Cog):
                 color=discord.Color.orange()
             )
             embed.set_footer(text=f"Kapatan: {interaction.user.display_name}")
-            await log_channel.send(content="@here", embed=embed, view=RaidBypassView())
+            await log_channel.send(content="<@&1529546007635824680>", embed=embed, view=RaidBypassView())
             
         await self.alert(interaction.guild, "Raid Koruması Kapatıldı", f"{interaction.user.mention} tarafından 24 saatliğine durduruldu.", discord.Color.orange())
 
