@@ -189,18 +189,16 @@ class LiveRadar(commands.Cog):
                 except Exception as e:
                     print(f"[RADAR HATA] Kanala mesaj atılamadı! Yetki hatası olabilir: {e}", flush=True)
 
-        # 2. Sunucudan çıkan oyuncuları temizle ve mesajlarını inaktif (Kırmızı) yap
+        # 2. Sunucudan çıkan oyuncuları temizle ve radar mesajlarını sil
         cikanlar = [isim for isim in self.takip_edilen_mesajlar if isim not in aktif_oyuncular]
         for isim in cikanlar:
-            msg = self.takip_edilen_mesajlar.pop(isim)
-            try:
-                embed = msg.embeds[0]
-                embed.color = discord.Color.red()
-                embed.title = f"🔴 Çevrimdışı: {isim}"
-                embed.description = "❌ Oyuncu sunucudan ayrıldı. İzleme sonlandırıldı."
-                await msg.edit(embed=embed)
-            except Exception as e:
-                print(f"[RADAR HATA] Çevrimdışı mesajı düzenlenemedi: {e}", flush=True)
+            msg = self.takip_edilen_mesajlar.pop(isim, None)
+            if msg:
+                try:
+                    await msg.delete()
+                    print(f"[RADAR BİLGİ] {isim} oyundan ayrıldı, radar mesajı silindi.", flush=True)
+                except Exception as e:
+                    print(f"[RADAR HATA] Çıkan oyuncunun mesajı silinemedi: {e}", flush=True)
 
         # 3. ER:LC Kill Loglarını ve Safezone İhlallerini Kontrol Et
         if kill_logs:
