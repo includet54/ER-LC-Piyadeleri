@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import asyncio
 from datetime import timedelta, datetime
 import collections
@@ -17,44 +18,83 @@ RAID_TIME_SECONDS = 15
 NUKE_ACTION_LIMIT = 3
 NUKE_TIME_SECONDS = 30
 
-# Kurucu rolü veya üst düzey yetkililer (Bu rollere sahip olanlar cezalardan muaf olur)
 WHITELISTED_ROLES = [1529546007635824680, 1539167256246747186]
 
-# Log kanalı (Buraya ID yazın veya bot açıldığında ilk bulduğu uygun kanala atar)
-SECURITY_LOG_CHANNEL_ID = 1554830631408504842 # Çete log kanalı veya yeni bir log kanalı atanabilir. 
-# Geçici olarak burayı boş bırakıp dinamik bulmasını da sağlayabiliriz, ama direkt yazmak güvenlidir.
+SECURITY_LOG_CHANNEL_ID = 1554830631408504842
+RAID_BYPASS_LOG_CHANNEL = 1533621981830844538
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+SECURITY_DATA_FILE = os.path.join(DATA_DIR, "security_settings.json")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+def load_security_data():
+    if not os.path.exists(SECURITY_DATA_FILE):
+        return {}
+    with open(SECURITY_DATA_FILE, "r", encoding="utf-8") as f:
+        try:
+            return json.load(f)
+        except:
+            return {}
+
+def save_security_data(data):
+    with open(SECURITY_DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
+class RaidBypassView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+    @discord.ui.button(label="Etkinleştir", style=discord.ButtonStyle.success, custom_id="raid_enable_btn", emoji="🛡️")
+    async def enable_raid(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Sadece kurucu
+        if 1529546007635824680 not in [r.id for r in interaction.user.roles] and not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Bu butonu sadece Kurucu kullanabilir!", ephemeral=True)
+            
+        data = load_security_data()
+        data["raid_bypass_until"] = None
+        save_security_data(data)
+        
+        button.disabled = True
+        button.label = "Yeniden Aktif Edildi"
+        button.style = discord.ButtonStyle.secondary
+        await interaction.response.edit_message(content=f"✅ **Raid Koruması (Saldırı Modu) {interaction.user.mention} tarafından erkenden YENİDEN AKTİF edildi!**", embed=None, view=self)
+        
+        # Güvenlik loguna da bildir
+        sec_cog = interaction.client.get_cog("SecurityGuard")
+        if sec_cog:
+            await sec_cog.alert(interaction.guild, "Raid Koruması Aktif Edildi", f"Raid koruması manuel olarak {interaction.user.mention} tarafından tekrar açıldı.", discord.Color.green())
 
 class SecurityGuard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        
-        # Anti-Spam (Kullanıcı ID -> Zaman Damgaları)
         self.user_messages = collections.defaultdict(list)
-        
-        # Anti-Raid (Zaman Damgaları)
         self.recent_joins = []
         self.raid_mode = False
-        
-        # Anti-Nuke (Yetkili ID -> Eylem Zaman Damgaları)
         self.admin_actions = collections.defaultdict(list)
-        
         self.log_channel = None
+        self.bot.add_view(RaidBypassView())
+
+    def is_raid_bypassed(self):
+        data = load_security_data()
+        bypass_str = data.get("raid_bypass_until")
+        if bypass_str:
+            bypass_time = datetime.fromisoformat(bypass_str)
+            if datetime.now() < bypass_time:
+                return True
+        return False
 
     async def get_log_channel(self, guild):
         if self.log_channel:
             return self.log_channel
-            
         kanal = guild.get_channel(SECURITY_LOG_CHANNEL_ID)
         if kanal:
             self.log_channel = kanal
             return kanal
-            
-        # Eğer belirtilen ID yoksa, içinde 'log' veya 'guvenlik' geçen bir kanal bul
         for channel in guild.text_channels:
             if "güvenlik" in channel.name.lower() or "security" in channel.name.lower():
                 self.log_channel = channel
                 return channel
-                
         return None
 
     def is_whitelisted(self, member):
@@ -64,8 +104,6 @@ class SecurityGuard(commands.Cog):
             if role.id in WHITELISTED_ROLES:
                 return True
             if role.permissions.administrator:
-                # Normalde adminler anti-nuke ile denetlenir ama anti-spam'dan muaf olabilir. 
-                # Nuke koruması adminleri de kapsar! (Hesap çalınmasına karşı)
                 pass
         return False
 
@@ -79,12 +117,40 @@ class SecurityGuard(commands.Cog):
             except:
                 pass
 
-    # ================= ANTI-SPAM =================
+    @app_commands.command(name="raidmod_kapa", description="Raid (Saldırı) korumasını 24 saatliğine kapatır (Sadece Kurucu).")
+    async def raidmod_kapa(self, interaction: discord.Interaction):
+        if 1529546007635824680 not in [r.id for r in interaction.user.roles] and not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Bu komutu sadece Kurucu kullanabilir!", ephemeral=True)
+            
+        now = datetime.now()
+        bypass_until = now + timedelta(hours=24)
+        
+        data = load_security_data()
+        data["raid_bypass_until"] = bypass_until.isoformat()
+        save_security_data(data)
+        
+        self.raid_mode = False # Mevcut raid modunu da kapat
+        self.recent_joins.clear()
+        
+        await interaction.response.send_message("✅ Raid Koruması 24 saatliğine başarıyla kapatıldı! Bildirim kanalına gönderiliyor...", ephemeral=True)
+        
+        log_channel = interaction.guild.get_channel(RAID_BYPASS_LOG_CHANNEL)
+        if log_channel:
+            timestamp = int(bypass_until.timestamp())
+            embed = discord.Embed(
+                title="⚠️ Raid Koruması Devre Dışı", 
+                description=f"Raid (Saldırı Modu) koruması yetkili tarafından geçici olarak durduruldu.\n\n⏳ **Otomatik Aktifleşme:** <t:{timestamp}:R>", 
+                color=discord.Color.orange()
+            )
+            embed.set_footer(text=f"Kapatan: {interaction.user.display_name}")
+            await log_channel.send(content="@here", embed=embed, view=RaidBypassView())
+            
+        await self.alert(interaction.guild, "Raid Koruması Kapatıldı", f"{interaction.user.mention} tarafından 24 saatliğine durduruldu.", discord.Color.orange())
+
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
-
         if self.is_whitelisted(message.author):
             return
 
@@ -92,20 +158,15 @@ class SecurityGuard(commands.Cog):
         now = datetime.now()
         
         self.user_messages[uid].append((now, message))
-        
-        # Sadece son SPAM_TIME_SECONDS saniye içindeki mesajları tut
         self.user_messages[uid] = [(t, msg) for t, msg in self.user_messages[uid] if (now - t).total_seconds() <= SPAM_TIME_SECONDS]
         
         if len(self.user_messages[uid]) > SPAM_MESSAGE_LIMIT:
-            # Spam tespit edildi!
             messages_to_delete = [msg for _, msg in self.user_messages[uid]]
             self.user_messages[uid].clear()
-            
             try:
                 await message.channel.delete_messages(messages_to_delete)
             except:
                 pass
-                
             try:
                 await message.author.timeout(timedelta(minutes=SPAM_TIMEOUT_DURATION), reason="Anti-Spam: Hızlı mesaj gönderme.")
                 await message.channel.send(f"⚠️ {message.author.mention}, spam yaptığınız için {SPAM_TIMEOUT_DURATION} dakika susturuldunuz!", delete_after=10)
@@ -113,13 +174,13 @@ class SecurityGuard(commands.Cog):
             except discord.Forbidden:
                 pass
 
-    # ================= ANTI-RAID (Spawn Koruması) =================
     @commands.Cog.listener()
     async def on_member_join(self, member):
+        if self.is_raid_bypassed():
+            return
+            
         now = datetime.now()
         self.recent_joins.append(now)
-        
-        # Son RAID_TIME_SECONDS içindeki girişleri say
         self.recent_joins = [t for t in self.recent_joins if (now - t).total_seconds() <= RAID_TIME_SECONDS]
         
         if len(self.recent_joins) > RAID_JOIN_LIMIT:
@@ -137,7 +198,6 @@ class SecurityGuard(commands.Cog):
             except:
                 pass
 
-            # 30 saniye yeni giriş olmazsa raid modunu kapat
             await asyncio.sleep(30)
             now_check = datetime.now()
             if not any((now_check - t).total_seconds() <= 30 for t in self.recent_joins):
@@ -145,39 +205,25 @@ class SecurityGuard(commands.Cog):
                     self.raid_mode = False
                     await self.alert(member.guild, "Anti-Raid Modu Kapatıldı", "✅ Tehlike geçti, sunucu girişleri tekrar normale döndü.", discord.Color.green())
 
-
-    # ================= ANTI-NUKE =================
     async def check_nuke(self, guild, action_type, reason):
-        await asyncio.sleep(2) # Discord logunun düşmesi için ufak bir bekleme
-        
+        await asyncio.sleep(2)
         try:
             async for entry in guild.audit_logs(limit=1, action=action_type):
                 user = entry.user
                 if user.bot or user.id == guild.owner_id:
                     continue
-                
-                # Kurucu rolü varsa dokunma (Ama hesabının çalınma ihtimaline karşı sadece Owner_id'yi muaf tutmak daha güvenlidir)
                 if user.id in [1529546007635824680]:
-                    pass # İstisnaya izin vermek istersen burayı ayarlayabilirsin, ama güvenlik için herkesi denetlemek iyidir.
-                
+                    pass
                 now = datetime.now()
                 self.admin_actions[user.id].append(now)
-                
                 self.admin_actions[user.id] = [t for t in self.admin_actions[user.id] if (now - t).total_seconds() <= NUKE_TIME_SECONDS]
-                
                 if len(self.admin_actions[user.id]) >= NUKE_ACTION_LIMIT:
                     self.admin_actions[user.id].clear()
-                    
-                    # Nuke Tespit Edildi! Yöneticiyi cezalandır!
                     await self.alert(guild, "ANTI-NUKE TETİKLENDİ!", f"🚨 **Tespiti Yapılan Yetkili:** {user.mention} ({user.id})\n❌ **Eylem:** Çok kısa sürede çok fazla sunucu yapısına zarar verdi ({reason}).\n⚠️ **Otomatik İşlem:** Kullanıcının tüm yetkileri elinden alındı ve sunucudan uzaklaştırıldı!", discord.Color.dark_red())
-                    
                     try:
-                        # Yetkilerini Al & At
                         await user.ban(reason="Anti-Nuke: Sunucuya Zarar Verme Girişimi")
                     except Exception as e:
-                        print(f"Anti-nuke ban hatası: {e}")
                         try:
-                            # Ban yetkisi yoksa rolleri sil
                             silinecek = [r for r in user.roles if r.name != "@everyone"]
                             await user.remove_roles(*silinecek, reason="Anti-Nuke Koruması")
                         except:
