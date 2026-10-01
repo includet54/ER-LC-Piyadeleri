@@ -70,7 +70,7 @@ KUFUR_KOKLERI: list[str] = [
     "sik", "siker", "sikey", "sikim", "sikis", "sikik", "sikiyor",
     "sktr", "siktir", "soke", "sokey",
     "yarrak", "yarak", "yarram",
-    "am", "amk", "amq", "bok",
+    "amk", "amq", "bok",
     "amina", "amini", "amcik",
     "got", "gotten", "gotlek",
     "pic", "serefsiz",
@@ -81,7 +81,7 @@ KUFUR_KOKLERI: list[str] = [
     "tasak", "tassak", "yavşak",
     "dol",
     # Hakaret
-    "gerizekal", "aptal", "salak", "mal", "ahmak",
+    "gerizekal", "aptal", "salak", "ahmak",
     "bok", "pislik",
     "manyak",
     "bok kafal",

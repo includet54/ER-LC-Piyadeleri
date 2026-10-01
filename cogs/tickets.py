@@ -75,7 +75,10 @@ class TicketPanelView(discord.ui.View):
     async def ticket_ac(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         kanal_adi = f"ticket-{interaction.user.name}".lower()
-        var_olan = discord.utils.get(guild.text_channels, name=kanal_adi)
+        acan_tag = f"acan_id:{interaction.user.id}"
+        var_olan = next((c for c in guild.text_channels if c.topic and acan_tag in c.topic), None)
+        if not var_olan:
+            var_olan = discord.utils.get(guild.text_channels, name=kanal_adi)
         if var_olan:
             return await interaction.response.send_message(
                 f"Zaten açık bir ticket'ın var: {var_olan.mention}", ephemeral=True
@@ -91,7 +94,7 @@ class TicketPanelView(discord.ui.View):
             if rol:
                 overwrites[rol] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
 
-        kategori = guild.get_channel(TICKET_KATEGORI_ID) if TICKET_KATEGORI_ID else None
+        kategori = guild.get_channel(TICKET_KATEGORI_ID) if TICKET_KATEGORI_ID else interaction.channel.category
 
         try:
             kanal = await guild.create_text_channel(

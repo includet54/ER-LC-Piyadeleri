@@ -109,7 +109,7 @@ class LocalMusicStartView(discord.ui.View):
         if not os.path.exists(music_dir):
             return await interaction.followup.send("❌ Music klasörü bulunamadı.", ephemeral=True)
 
-        files = [f for f in os.listdir(music_dir) if f.endswith(('.mp3', '.mp4', '.wav', '.m4a'))]
+        files = [f for f in sorted(os.listdir(music_dir)) if f.endswith(('.mp3', '.mp4', '.wav', '.m4a'))]
         if not files:
             return await interaction.followup.send("❌ Hazır müzik bulunamadı.", ephemeral=True)
 
@@ -247,7 +247,7 @@ class SesOynatici(commands.Cog):
         if not os.path.exists(music_dir):
             return await interaction.response.send_message("❌ Sunucuda 'Music' klasörü bulunamadı.", ephemeral=True)
 
-        files = [f for f in os.listdir(music_dir) if f.endswith(('.mp3', '.mp4', '.wav', '.m4a'))]
+        files = [f for f in sorted(os.listdir(music_dir)) if f.endswith(('.mp3', '.mp4', '.wav', '.m4a'))]
         if not files:
             return await interaction.response.send_message("❌ 'Music' klasörünün içinde hiç hazır şarkı yok.", ephemeral=True)
 

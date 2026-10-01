@@ -5,6 +5,8 @@ import json
 import os
 import datetime
 
+from utils.storage import load_json, save_json_atomic
+
 # ============================
 # KANAL VE ROL ID'LERİ (İsteğine göre ayarlandı)
 YARDIM_BEKLEME_VC_ID = 1532829788824404274
@@ -21,18 +23,10 @@ GUNLUK_HEDEF_SANIYE = 5 * 60 * 60  # 5 saat
 # ============================
 
 def load_stats():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if not os.path.exists(DATA_FILE): return {}
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    return load_json(DATA_FILE, {})
 
 def save_stats(data):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
+    save_json_atomic(DATA_FILE, data)
 
 def update_mod_stat(mod_id, key, amount=1):
     data = load_stats()
@@ -83,30 +77,55 @@ class DestekBitirModal(discord.ui.Modal, title="Desteği Sonlandır"):
 
 
 class DestekAktifView(discord.ui.View):
-    def __init__(self, yetkili_id: int, yardim_isteyen_id: int, baslangic_zamani: datetime.datetime):
+    def __init__(self, yetkili_id: int = None, yardim_isteyen_id: int = None, baslangic_zamani: datetime.datetime = None):
         super().__init__(timeout=None)
         self.yetkili_id = yetkili_id
         self.yardim_isteyen_id = yardim_isteyen_id
         self.baslangic_zamani = baslangic_zamani
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.yetkili_id:
-            await interaction.response.send_message("❌ Sadece desteği devralan yetkili bu işlemi yapabilir!", ephemeral=True)
-            return False
-        return True
+    def _get_meta(self, interaction: discord.Interaction):
+        yetkili_id = self.yetkili_id
+        yardim_isteyen_id = self.yardim_isteyen_id
+        baslangic = self.baslangic_zamani or discord.utils.utcnow()
+
+        if interaction.message and interaction.message.embeds:
+            footer = interaction.message.embeds[0].footer.text or ""
+            for item in footer.split("|"):
+                if item.startswith("yetkili:"):
+                    try:
+                        yetkili_id = int(item.split(":")[1])
+                    except:
+                        pass
+                elif item.startswith("kullanici:"):
+                    try:
+                        yardim_isteyen_id = int(item.split(":")[1])
+                    except:
+                        pass
+                elif item.startswith("baslangic:"):
+                    try:
+                        baslangic = datetime.datetime.fromtimestamp(int(item.split(":")[1]), tz=datetime.timezone.utc)
+                    except:
+                        pass
+        return yetkili_id, yardim_isteyen_id, baslangic
 
     @discord.ui.button(label="Desteği Bitir", style=discord.ButtonStyle.success, emoji="✅", custom_id="destek_bitir_btn")
     async def bitir_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(DestekBitirModal(self.baslangic_zamani, self.yardim_isteyen_id))
+        yetkili_id, yardim_isteyen_id, baslangic = self._get_meta(interaction)
+        if yetkili_id and interaction.user.id != yetkili_id and not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Sadece desteği devralan yetkili bu işlemi yapabilir!", ephemeral=True)
+        await interaction.response.send_modal(DestekBitirModal(baslangic, yardim_isteyen_id or 0))
 
-    @discord.ui.button(label="Boş Çıktı", style=discord.ButtonStyle.secondary, emoji="🗑️")
+    @discord.ui.button(label="Boş Çıktı", style=discord.ButtonStyle.secondary, emoji="🗑️", custom_id="destek_bos_btn")
     async def bos_cikti_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        yetkili_id, yardim_isteyen_id, _ = self._get_meta(interaction)
+        if yetkili_id and interaction.user.id != yetkili_id and not interaction.user.guild_permissions.administrator:
+            return await interaction.response.send_message("❌ Sadece desteği devralan yetkili bu işlemi yapabilir!", ephemeral=True)
         await interaction.response.defer()
         
         log_kanal = interaction.guild.get_channel(ONLY_MOD_KANALI)
         if log_kanal:
             embed = discord.Embed(title="❌ Destek Boş Çıktı", color=discord.Color.light_grey())
-            embed.description = f"{interaction.user.mention}, <@{self.yardim_isteyen_id}> kullanıcısının desteğini **'Boş'** olarak sonuçlandırdı."
+            embed.description = f"{interaction.user.mention}, <@{yardim_isteyen_id}> kullanıcısının desteğini **'Boş'** olarak sonuçlandırdı."
             await log_kanal.send(embed=embed)
 
         await interaction.message.edit(content=f"❌ {interaction.user.mention} desteği boş olarak sonlandırdı.", view=None, embed=None)
@@ -114,15 +133,30 @@ class DestekAktifView(discord.ui.View):
 
 
 class DevralView(discord.ui.View):
-    def __init__(self, yardim_isteyen_id: int):
+    def __init__(self, yardim_isteyen_id: int = None):
         super().__init__(timeout=None)
         self.yardim_isteyen_id = yardim_isteyen_id
 
-    @discord.ui.button(label="Katılımcıyı Devral", style=discord.ButtonStyle.success, emoji="👋")
+    def _get_kullanici_id(self, interaction: discord.Interaction):
+        if self.yardim_isteyen_id:
+            return self.yardim_isteyen_id
+        if interaction.message and interaction.message.embeds:
+            footer = interaction.message.embeds[0].footer.text or ""
+            if "destek_kullanici:" in footer:
+                try:
+                    return int(footer.split("destek_kullanici:")[1].strip())
+                except Exception:
+                    pass
+        if interaction.message and interaction.message.mentions:
+            return interaction.message.mentions[0].id
+        return None
+
+    @discord.ui.button(label="Katılımcıyı Devral", style=discord.ButtonStyle.success, emoji="👋", custom_id="destek_devral_btn")
     async def devral_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         guild = interaction.guild
-        yardim_isteyen = guild.get_member(self.yardim_isteyen_id)
+        kullanici_id = self._get_kullanici_id(interaction)
+        yardim_isteyen = guild.get_member(kullanici_id) if kullanici_id else None
         yardim_kanal = guild.get_channel(YARDIM_VC_ID)
 
         if not yardim_isteyen or not yardim_isteyen.voice:
@@ -138,18 +172,26 @@ class DevralView(discord.ui.View):
             return
 
         baslangic = discord.utils.utcnow()
+        active_embed = discord.Embed(
+            title="🎧 Destek Devralındı",
+            description=f"👋 {interaction.user.mention}, <@{kullanici_id}> kullanıcısının desteğini devraldı.\n(Odaya çekildi ve susturması açıldı)",
+            color=discord.Color.blue()
+        )
+        active_embed.set_footer(text=f"yetkili:{interaction.user.id}|kullanici:{kullanici_id}|baslangic:{int(baslangic.timestamp())}")
+
         await interaction.message.edit(
-            content=f"👋 {interaction.user.mention}, <@{self.yardim_isteyen_id}> kullanıcısının desteğini devraldı.\n(Odaya çekildi ve susturması açıldı)",
-            view=DestekAktifView(interaction.user.id, self.yardim_isteyen_id, baslangic),
-            embed=None
+            content=None,
+            embed=active_embed,
+            view=DestekAktifView(interaction.user.id, kullanici_id, baslangic)
         )
         await interaction.followup.send("Destek başarıyla devralındı.", ephemeral=True)
 
-    @discord.ui.button(label="Beklemeden Çıkar", style=discord.ButtonStyle.danger, emoji="🚪")
+    @discord.ui.button(label="Beklemeden Çıkar", style=discord.ButtonStyle.danger, emoji="🚪", custom_id="destek_at_btn")
     async def at_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
         guild = interaction.guild
-        yardim_isteyen = guild.get_member(self.yardim_isteyen_id)
+        kullanici_id = self._get_kullanici_id(interaction)
+        yardim_isteyen = guild.get_member(kullanici_id) if kullanici_id else None
 
         if yardim_isteyen and yardim_isteyen.voice:
             try:
@@ -160,7 +202,7 @@ class DevralView(discord.ui.View):
         log_kanal = interaction.guild.get_channel(ONLY_MOD_KANALI)
         if log_kanal:
             embed = discord.Embed(title="🚪 Katılımcı Atıldı", color=discord.Color.red())
-            embed.description = f"{interaction.user.mention}, <@{self.yardim_isteyen_id}> kullanıcısını **Yardım Bekleme** kanalından beklemeden çıkardı."
+            embed.description = f"{interaction.user.mention}, <@{kullanici_id}> kullanıcısını **Yardım Bekleme** kanalından beklemeden çıkardı."
             await log_kanal.send(embed=embed)
 
         await interaction.message.edit(content=f"🚪 {interaction.user.mention}, katılımcıyı beklemeden çıkardı.", view=None, embed=None)
@@ -296,6 +338,7 @@ class YardimBekleme(commands.Cog):
                     description=f"{member.mention} **Yardım Bekleme** kanalına giriş yaptı ve destek bekliyor.", 
                     color=discord.Color.orange()
                 )
+                embed.set_footer(text=f"destek_kullanici:{member.id}")
                 embed.timestamp = discord.utils.utcnow()
                 
                 ping_msg = f"<@&{DESTEK_BEKLEME_YETKILISI_ROL}>"

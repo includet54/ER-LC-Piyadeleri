@@ -40,6 +40,7 @@ class MyBot(commands.Bot):
         from cogs.yonetim_paneli import YonetimButonView
         from cogs.cete_sistemi import GangPanelView, AdminGangPanelView
         from cogs.rp_oylama import RPOylamaView
+        from cogs.yardim_bekleme import DevralView, DestekAktifView
 
         self.add_view(KayitButonView())
         self.add_view(OnayView(user_id=None))
@@ -54,6 +55,8 @@ class MyBot(commands.Bot):
         self.add_view(GangPanelView())
         self.add_view(AdminGangPanelView())
         self.add_view(RPOylamaView())
+        self.add_view(DevralView())
+        self.add_view(DestekAktifView())
 
         try:
             guild = discord.Object(id=GUILD_ID)

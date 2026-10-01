@@ -28,18 +28,13 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 SECURITY_DATA_FILE = os.path.join(DATA_DIR, "security_settings.json")
 os.makedirs(DATA_DIR, exist_ok=True)
 
+from utils.storage import load_json, save_json_atomic
+
 def load_security_data():
-    if not os.path.exists(SECURITY_DATA_FILE):
-        return {}
-    with open(SECURITY_DATA_FILE, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except:
-            return {}
+    return load_json(SECURITY_DATA_FILE, {})
 
 def save_security_data(data):
-    with open(SECURITY_DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+    save_json_atomic(SECURITY_DATA_FILE, data)
 
 class RaidBypassView(discord.ui.View):
     def __init__(self):
@@ -73,6 +68,7 @@ class SecurityGuard(commands.Cog):
         self.raid_mode = False
         self.admin_actions = collections.defaultdict(list)
         self.log_channel = None
+        self.raid_cooldown_task = None
         self.bot.add_view(RaidBypassView())
 
     def is_raid_bypassed(self):
@@ -198,12 +194,21 @@ class SecurityGuard(commands.Cog):
             except:
                 pass
 
+            # Singleton Cooldown Task: Her giriş için ayrı sleep açmak yerine tek bir zamanlayıcı yönetilir
+            if self.raid_cooldown_task and not self.raid_cooldown_task.done():
+                self.raid_cooldown_task.cancel()
+            self.raid_cooldown_task = asyncio.create_task(self._raid_cooldown_handler(member.guild))
+
+    async def _raid_cooldown_handler(self, guild):
+        try:
             await asyncio.sleep(30)
             now_check = datetime.now()
             if not any((now_check - t).total_seconds() <= 30 for t in self.recent_joins):
                 if self.raid_mode:
                     self.raid_mode = False
-                    await self.alert(member.guild, "Anti-Raid Modu Kapatıldı", "✅ Tehlike geçti, sunucu girişleri tekrar normale döndü.", discord.Color.green())
+                    await self.alert(guild, "Anti-Raid Modu Kapatıldı", "✅ Tehlike geçti, sunucu girişleri tekrar normale döndü.", discord.Color.green())
+        except asyncio.CancelledError:
+            pass
 
     async def check_nuke(self, guild, action_type, reason):
         await asyncio.sleep(2)
@@ -212,8 +217,10 @@ class SecurityGuard(commands.Cog):
                 user = entry.user
                 if user.bot or user.id == guild.owner_id:
                     continue
-                if user.id in [1529546007635824680]:
-                    pass
+                member = guild.get_member(user.id)
+                # Kurucu veya Üst Yönetim rolü / Sunucu Sahibi denetimi
+                if member and (any(r.id in [1529546007635824680, 1539167256246747186] for r in member.roles) or member.id == guild.owner_id):
+                    continue
                 now = datetime.now()
                 self.admin_actions[user.id].append(now)
                 self.admin_actions[user.id] = [t for t in self.admin_actions[user.id] if (now - t).total_seconds() <= NUKE_TIME_SECONDS]

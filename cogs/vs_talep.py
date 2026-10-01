@@ -409,15 +409,16 @@ class VSTalepCog(commands.Cog):
                         pass
                     continue
 
-                # Kapanmaya 5 saat kala uyarı gönder (43. saat ile 43.5 arasında)
+                # Kapanmaya 5 saat kala uyarı gönder (43. saat ve sonrası)
                 uyari_baslangic = VS_SURE_SAAT - VS_UYARI_SAAT
-                if uyari_baslangic <= elapsed < uyari_baslangic + 0.5:
-                    # Daha önce uyarı gönderilmiş mi kontrol et
-                    uyari_atildi = False
-                    async for msg in channel.history(limit=10):
-                        if msg.author == self.bot.user and "⚠️ **Dikkat!**" in (msg.content or ""):
-                            uyari_atildi = True
-                            break
+                if elapsed >= uyari_baslangic:
+                    topic_str = channel.topic or ""
+                    uyari_atildi = "|warned" in topic_str
+                    if not uyari_atildi:
+                        async for msg in channel.history(limit=25):
+                            if msg.author == self.bot.user and "⚠️ **Dikkat!**" in (msg.content or ""):
+                                uyari_atildi = True
+                                break
 
                     if not uyari_atildi:
                         deadline_ts = int(creation_time.timestamp() + VS_SURE_SAAT * 3600)
@@ -427,6 +428,8 @@ class VSTalepCog(commands.Cog):
                                 f"⏰ Son tarih: <t:{deadline_ts}:F> (<t:{deadline_ts}:R>)\n\n"
                                 f"Lütfen sonucu belirleyin, aksi takdirde talep otomatik iptal edilecektir."
                             )
+                            if topic_str and "|warned" not in topic_str:
+                                await channel.edit(topic=f"{topic_str}|warned")
                         except Exception:
                             pass
 

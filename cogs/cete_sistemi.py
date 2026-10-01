@@ -5,6 +5,7 @@ import json
 import os
 import random
 from datetime import datetime, timedelta
+from utils.storage import load_json, save_json_atomic as save_json
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_FILE = os.path.join(BASE_DIR, "data", "cete_data.json")
@@ -63,20 +64,6 @@ async def send_detailed_log(bot, action_text, color=discord.Color.blue(), cete_i
 
     except:
         pass
-
-def load_json(filepath):
-    if not os.path.exists(filepath):
-        return {}
-    try:
-        with open(filepath, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-def save_json(filepath, data):
-    os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
 
 async def get_or_fetch_channel(client_or_guild, channel_id: int):
     if not channel_id:
@@ -173,6 +160,12 @@ class AdminApprovalView(discord.ui.View):
                 accepted_members.append(int(uid_str))
         
         await interaction.response.defer()
+
+        # Kategori 48 kanal sınır kontrolü
+        text_category = discord.utils.get(guild.categories, name="Çeteler Sınırsız Ticket")
+        voice_category = discord.utils.get(guild.categories, name="Çete Ses kanalları")
+        if (text_category and len(text_category.channels) >= 48) or (voice_category and len(voice_category.channels) >= 48):
+            return await interaction.followup.send("❌ Kategori kanal kapasitesi sınırına (48 kanal) ulaşıldığı için yeni çete onaylanamaz!", ephemeral=True)
 
         # 1. Rolü Oluştur
         colors_data = load_json(COLORS_FILE)
