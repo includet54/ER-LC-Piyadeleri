@@ -1,6 +1,8 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+import asyncio
+from typing import Optional
 
 # YETKİLİ ROLLERİ (KİM KULLANABİLİR)
 KURUCU_ROL_ID = 1529546007635824680
@@ -189,6 +191,114 @@ class YonetimPaneli(commands.Cog):
 
         await interaction.channel.send(embed=embed, view=YonetimButonView())
         await interaction.response.send_message("Yönetim paneli gönderildi.", ephemeral=True)
+
+    @app_commands.command(name="rols", description="Sunucudaki tüm rolleri baştan aşağıya dizilimiyle etiketleyip sıralar.")
+    @app_commands.describe(
+        kanal="Rollerin gönderileceği hedef kanal (Boş bırakılırsa bu kanala gönderilir)",
+        detayli="Rol ID'si ve üye sayısını da göstersin mi? (Varsayılan: Hayır)",
+        bildirim="Rol sahiplerine bildirim/ping gitsin mi? (Varsayılan: Hayır)"
+    )
+    async def rols(
+        self,
+        interaction: discord.Interaction,
+        kanal: Optional[discord.TextChannel] = None,
+        detayli: bool = False,
+        bildirim: bool = False
+    ):
+        ASIL_KURUCU_ID = 1133815339898122320
+        if interaction.user.id != ASIL_KURUCU_ID:
+            return await interaction.response.send_message(
+                "❌ Bu komutu sadece **Asıl Sunucu Kurucusu** (<@1133815339898122320>) kullanabilir!",
+                ephemeral=True
+            )
+
+        guild = interaction.guild
+        if not guild:
+            return await interaction.response.send_message("❌ Bu komut sadece bir sunucuda kullanılabilir.", ephemeral=True)
+
+        hedef_kanal = kanal or interaction.channel
+
+        # Botun hedef kanala yazma yetkisi var mı kontrol et
+        perms = hedef_kanal.permissions_for(guild.me)
+        if not perms.send_messages:
+            return await interaction.response.send_message(
+                f"❌ Botun {hedef_kanal.mention} kanalına mesaj gönderme yetkisi yok!",
+                ephemeral=True
+            )
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Sunucu ayarlarında roller en alttan (position=0, @everyone) en üste (position=N) sıralıdır.
+        # "Baştan aşağıya dizilimi" için en yüksek rolden en alta doğru sıralıyoruz:
+        tum_roller = sorted(guild.roles, key=lambda r: r.position, reverse=True)
+        sirali_roller = [r for r in tum_roller if not r.is_default()]
+        everyone_rol = guild.default_role
+
+        lines = []
+        for index, rol in enumerate(sirali_roller, start=1):
+            if detayli:
+                bot_etiketi = " `[BOT]`" if rol.managed else ""
+                lines.append(f"**{index}.** {rol.mention} — `ID: {rol.id}` • `{len(rol.members)} Üye`{bot_etiketi}")
+            else:
+                lines.append(f"**{index}.** {rol.mention}")
+
+        # En alta @everyone rolünü ekle
+        if everyone_rol:
+            sira_everyone = len(sirali_roller) + 1
+            if detayli:
+                lines.append(f"**{sira_everyone}.** `@everyone` — `ID: {everyone_rol.id}` • `{len(guild.members)} Üye`")
+            else:
+                lines.append(f"**{sira_everyone}.** `@everyone`")
+
+        header = (
+            "# 👑 PİYADE ROLEPLAY | ROL HİYERARŞİSİ & DİZİLİMİ\n"
+            f"> Sunucu ayarlarındaki **en yüksek rolden en alt role doğru** hiyerarşik sıralama:\n"
+            "──────────────────────────────────────────\n"
+        )
+        footer = f"\n──────────────────────────────────────────\n📊 **Toplam Rol Sayısı:** `{len(tum_roller)}`"
+
+        # Discord 2000 karakter sınırını aşmamak için güvenli parçalama (chunking)
+        chunks = []
+        current_chunk = header
+
+        for line in lines:
+            if len(current_chunk) + len(line) + 1 > 1850:
+                chunks.append(current_chunk)
+                current_chunk = line + "\n"
+            else:
+                current_chunk += line + "\n"
+
+        if current_chunk:
+            if len(current_chunk) + len(footer) <= 1950:
+                current_chunk += footer
+                chunks.append(current_chunk)
+            else:
+                chunks.append(current_chunk)
+                chunks.append(footer.strip())
+
+        # allowed_mentions: Bildirim False ise kullanıcıları rahatsız etmemek için ping bildirimleri kapatılır
+        # (Discord'da role pill @Rol görünümü korunur, sadece kullanıcılara ses/bildirim zili gitmez)
+        allowed_mentions = discord.AllowedMentions(
+            roles=bildirim,
+            everyone=bildirim,
+            users=False
+        )
+
+        try:
+            for idx, chunk in enumerate(chunks):
+                await hedef_kanal.send(chunk, allowed_mentions=allowed_mentions)
+                if len(chunks) > 1 and idx < len(chunks) - 1:
+                    await asyncio.sleep(0.5)
+
+            await interaction.followup.send(
+                f"✅ Başarılı! Toplam **{len(tum_roller)}** rol hiyerarşik dizilimiyle {hedef_kanal.mention} kanalına sıralandı ve gönderildi.",
+                ephemeral=True
+            )
+        except Exception as e:
+            await interaction.followup.send(
+                f"❌ Mesaj gönderilirken bir hata oluştu: {e}",
+                ephemeral=True
+            )
 
 async def setup(bot):
     await bot.add_cog(YonetimPaneli(bot))
